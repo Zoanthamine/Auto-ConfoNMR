@@ -1,0 +1,29 @@
+{
+  "python": "/CHANGE_ME/conda/envs/confonmr/bin/python",
+  "projects_root": "/CHANGE_ME/projects",
+  "scratch_root": "/CHANGE_ME/scratch",
+  "resource_bundle": "/CHANGE_ME/software/confonmr-resources",
+  "software": {
+    "g16": "/CHANGE_ME/gaussian/g16/g16",
+    "formchk": "/CHANGE_ME/gaussian/g16/formchk",
+    "orca": "/CHANGE_ME/orca/orca",
+    "openmpi": "/CHANGE_ME/openmpi",
+    "crest": "/CHANGE_ME/crest/bin/crest",
+    "shermo": "/CHANGE_ME/Shermo/Shermo",
+    "multiwfn": "/CHANGE_ME/Multiwfn/Multiwfn_noGUI",
+    "obabel": "/CHANGE_ME/conda/envs/confonmr/bin/obabel",
+    "vmd": "/CHANGE_ME/vmd/lib/vmd/vmd_LINUXAMD64",
+    "gmx": "gmx"
+  },
+  "modules": [],
+  "gaussian_profile": "/CHANGE_ME/gaussian/g16/bsd/g16.profile",
+  "path_prepend": [],
+  "ld_library_path_prepend": [],
+  "scheduler": {
+    "type": "pbs",
+    "queue": "CHANGE_ME",
+    "walltime": "72:00:00",
+    "node_resource": "nodes=1:ppn={cores}",
+    "extra_qsub_args": []
+  }
+}

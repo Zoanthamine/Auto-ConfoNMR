@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+#PBS -N AutoConfoNMR
+#PBS -j oe
+#PBS -S /bin/bash
+# Queue/node/walltime arguments come from config/cluster.json via submit.sh.
+set -Eeuo pipefail
+IFS=$'\n\t'
+trap 'printf "Workflow stopped at line %s; retain logs.\n" "$LINENO" >&2' ERR
+readonly WORKFLOW_HOME='__PROJECT_WORKFLOW__'
+: "${JOB_CONFIG:?Submit with an absolute JOB_CONFIG}"
+: "${PBS_JOBID:?A PBS allocation is required}"
+PROJECT_DIR="$(dirname -- "$(readlink -f -- "$JOB_CONFIG")")"
+readonly PROJECT_DIR
+mkdir -p "$PROJECT_DIR/运行日志"
+RUN_LOG="$PROJECT_DIR/运行日志/run_$(date +%Y%m%d_%H%M%S)_${PBS_JOBID}.log"
+readonly RUN_LOG
+exec > >(tee -a "$RUN_LOG") 2>&1
+export PYTHONUNBUFFERED=1 NMR_STREAM_LOG=1 NMR_PROJECT_DIR="$PROJECT_DIR"
+printf 'Auto ConfoNMR 项目：%s\n作业：%s\n节点：%s\n完整输出：%s\n' "$PROJECT_DIR" "$PBS_JOBID" "$(hostname)" "$RUN_LOG"
+# Generated inside this project from the explicitly configured site settings.
+# shellcheck disable=SC1091
+source "$WORKFLOW_HOME/cluster_runtime.sh"
+readonly PYTHON="${CONFONMR_PYTHON:?Project runtime environment is missing}"
+finish() {
+  local result=$?
+  trap - EXIT
+  set +e
+  "$PYTHON" "$WORKFLOW_HOME/project_views.py" "$PROJECT_DIR" --copy
+  printf 'PBS运行结束，返回值：%s；过程文件已整理。\n' "$result"
+  exit "$result"
+}
+trap finish EXIT
+exec 9>"${JOB_CONFIG}.run.lock"
+flock -n 9 || { printf 'This configuration already has an active calculation.\n' >&2; exit 1; }
+OMP_NUM_THREADS="$("$PYTHON" -c 'import json,sys;print(json.load(open(sys.argv[1]))["cores"])' "$JOB_CONFIG")"
+export OMP_NUM_THREADS
+printf '\nLoaded modules:\n'
+if type module >/dev/null 2>&1; then module list 2>&1; fi
+cd "${PBS_O_WORKDIR:?}"
+"$PYTHON" "$WORKFLOW_HOME/nmrflow.py" check "$JOB_CONFIG"
+"$PYTHON" "$WORKFLOW_HOME/nmrflow.py" run "$JOB_CONFIG"

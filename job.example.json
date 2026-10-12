@@ -1,0 +1,130 @@
+{
+  "protocol": "Auto_ConfoNMR_V1.1_custom",
+  "charge": 0,
+  "multiplicity": 1,
+  "solvent": "chloroform",
+  "cores": 16,
+  "md_threads": 4,
+  "memory_gb": 60,
+  "orca_maxcore_mb": 3000,
+  "max_conformers": 6,
+  "population_coverage": 0.99,
+  "clustering": {
+    "GFN1": {
+      "Edis": 0.5,
+      "Gdis": 0.5,
+      "T": 300,
+      "Nout": 100,
+      "Eout": 100
+    },
+    "GFN2": {
+      "Edis": 0.3,
+      "Gdis": 0.2,
+      "T": 300,
+      "Nout": 100,
+      "Eout": 100
+    },
+    "DFT": {
+      "Edis": 0.3,
+      "Gdis": 0.2,
+      "T": 300,
+      "Nout": 100,
+      "Eout": 100
+    }
+  },
+  "md_seeds": [
+    1235761163,
+    -700411449,
+    963984578
+  ],
+  "grompp_maxwarn": 0,
+  "resp2": {
+    "delta": 0.5,
+    "solvent": "water"
+  },
+  "shermo": {
+    "T": 298.15,
+    "P": 1.0,
+    "ilowfreq": 2,
+    "intpvib": 100,
+    "sclZPE": 1.0,
+    "sclheat": 1.0,
+    "sclS": 1.0,
+    "sclCV": 1.0,
+    "conc": 0,
+    "imode": 0,
+    "defmass": 3
+  },
+  "methods": [
+    "01",
+    "02",
+    "03"
+  ],
+  "candidates": [
+    {
+      "id": "candidate_A",
+      "input": "inputs/candidate_A.pdb"
+    },
+    {
+      "id": "candidate_B",
+      "input": "inputs/candidate_B.pdb"
+    }
+  ],
+  "output": "runs/run_001",
+  "experiment": "experiment.csv",
+  "assignments": "assignments.csv",
+  "postprocessing": [
+    {
+      "kind": "dp4plus",
+      "method": "01",
+      "parameter_key": "B3LYP|PCM|6-31G(d)",
+      "allow_exploratory": false,
+      "differences": [
+        "Geometry uses gas B3LYP-D3BJ/6-31G(d); not original DP4+ B3LYP/6-31G(d) or STS solvent B3LYP-D3BJ/TZVP",
+        "Weights use gas ORCA energies + Shermo quasi-RRHO; DP4+ originally uses corresponding NMR single-point energies at 298 K; STS uses solvent B3LYP-D3BJ/TZVP Gibbs energies",
+        "Fixed DFT budget and legacy Sobtop guessed torsions limit conformer coverage"
+      ]
+    },
+    {
+      "kind": "dp4plus",
+      "method": "02",
+      "parameter_key": "mPW1PW91|PCM|6-311+G(d,p)",
+      "allow_exploratory": false,
+      "differences": [
+        "Geometry uses gas B3LYP-D3BJ/6-31G(d); not original DP4+ B3LYP/6-31G(d) or STS solvent B3LYP-D3BJ/TZVP",
+        "Weights use gas ORCA energies + Shermo quasi-RRHO; DP4+ originally uses corresponding NMR single-point energies at 298 K; STS uses solvent B3LYP-D3BJ/TZVP Gibbs energies",
+        "Fixed DFT budget and legacy Sobtop guessed torsions limit conformer coverage"
+      ]
+    },
+    {
+      "kind": "sts",
+      "method": "03",
+      "parameter_key": "CDCl3",
+      "allow_exploratory": false,
+      "differences": [
+        "Geometry uses gas B3LYP-D3BJ/6-31G(d); not original DP4+ B3LYP/6-31G(d) or STS solvent B3LYP-D3BJ/TZVP",
+        "Weights use gas ORCA energies + Shermo quasi-RRHO; DP4+ originally uses corresponding NMR single-point energies at 298 K; STS uses solvent B3LYP-D3BJ/TZVP Gibbs energies",
+        "Fixed DFT budget and legacy Sobtop guessed torsions limit conformer coverage"
+      ]
+    }
+  ],
+  "software": {
+    "g16": "/CHANGE_ME/gaussian/g16/g16",
+    "formchk": "/CHANGE_ME/gaussian/g16/formchk",
+    "orca": "/CHANGE_ME/orca/orca",
+    "openmpi": "/CHANGE_ME/openmpi",
+    "crest": "/CHANGE_ME/crest/bin/crest",
+    "shermo": "/CHANGE_ME/Shermo/Shermo",
+    "multiwfn": "/CHANGE_ME/Multiwfn/Multiwfn_noGUI",
+    "obabel": "/CHANGE_ME/conda/envs/confonmr/bin/obabel",
+    "vmd": "/CHANGE_ME/vmd/lib/vmd/vmd_LINUXAMD64",
+    "gmx": "gmx"
+  },
+  "method_layout": "dp4_dp4_sts_v4",
+  "nmr_profile": "legacy_pcm_g09",
+  "nmr_settings": {
+    "solvent_model": "IEFPCM",
+    "gaussian_defaults": "G09Defaults"
+  },
+  "clustering_profile": "coarse"
+}

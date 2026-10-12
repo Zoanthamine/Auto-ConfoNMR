@@ -1,0 +1,9 @@
+%mem=60GB
+%nprocshared=16
+#p freq B3LYP/6-31G* em=GD3BJ  int=fine
+
+Template file
+
+0 1
+[GEOMETRY]
+

@@ -1,0 +1,19 @@
+# Local installations and unpublished validation records
+config/cluster.json
+.site-resources/
+.history/
+upstream/
+__pycache__/
+*.pyc
+cluster_runtime.sh
+submissions.tsv
+# Research data and generated results belong outside the source template
+*.chk
+*.fchk
+*.gbw
+*.xtc
+*.trr
+*.tpr
+*.log
+*.tar.gz
+*.zip

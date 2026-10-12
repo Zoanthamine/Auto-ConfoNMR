@@ -1,0 +1,13 @@
+candidate,signal,atoms,hybridization,carbon_type,heavy_atom
+candidate_A,C1,1,sp3,sp3-CH3,None
+candidate_A,C2,2,sp3,sp3-CH2/CH/C,None
+candidate_A,C3,3,sp2,sp2-CH,None
+candidate_A,H1,4;5;6,sp3,,
+candidate_A,H2,7,sp3,,
+candidate_A,H3,8,sp2,,
+candidate_B,C1,1,sp3,sp3-CH3,None
+candidate_B,C2,2,sp3,sp3-CH2/CH/C,None
+candidate_B,C3,3,sp2,sp2-CH,None
+candidate_B,H1,4;5;6,sp3,,
+candidate_B,H2,7,sp3,,
+candidate_B,H3,8,sp2,,
