@@ -4,9 +4,11 @@
 
 Auto ConfoNMR 从三维候选结构出发，串联构象搜索、几何优化、频率分析、单点能和 NMR 屏蔽计算，导出构象加权结果，并根据实验归属进行 DP4+/STS 比较。适用于 Linux 集群，目前提供 PBS 单节点提交方式。
 
+普通使用可下载 Release 中的 `Auto_ConfoNMR_V1.1_runtime.zip`，其中包含运行脚本及 Linux x86-64 辅助资源目录；完整源码包另外包含 `tests/` 及参数提取维护工具。测试不参与日常计算。
+
 日常操作使用一个建项目脚本和四个项目内脚本。计算条件写在带中文注释的 `project.ini` 中；软件路径、module 和队列设置集中在 `config/cluster.json` 中。
 
-本仓库提供脚本、输入模板和统计参数。Gaussian、ORCA 等外部软件及部分辅助资源需要另行配置。首次安装请先完成后文的[迁移配置](#迁移配置)。
+本仓库提供脚本、输入模板和统计参数。Release 运行包另含 CREST、xTB、Shermo、Multiwfn、Molclus/Sobtop 工具及配套资源，见 [资源目录说明](confonmr-resources/README.md)。Gaussian、ORCA 等完整软件环境仍需另行配置。首次安装请先完成后文的[迁移配置](#迁移配置)。
 
 ## 日常使用
 
@@ -219,7 +221,7 @@ Sobtop 若缺少扭转参数，可能将势垒置零；缺少 improper 时可能
 |`project_views.py`|文件索引、HTML 总览与构象分布汇总|
 |`init_project.py`、`submit.sh`、`run_nmr.pbs`|初始化与调度内部入口，由日常脚本调用|
 |`extract_calibration.py`|维护者从上游表提取参数，非日常操作|
-|`test_*.py`|解析、统计、身份、调度保护、文件输出与配置测试|
+|`tests/test_*.py`|解析、统计、身份、调度保护、文件输出与配置测试|
 
 输入模板位于 `resources/`：`03_tem1/2/3.gjf` 为优化主方案和两个回退，`04_tem.gjf` 为频率，`05_tem.inp` 为 ORCA 单点，`06_tem01/02/03_nmr.gjf` 对应三组屏蔽，`md01/02/03.mdp` 为动力学设置。修改这些模板需要方法审核和新项目验证。
 
@@ -235,7 +237,9 @@ cd Auto_ConfoNMR
 git checkout V1.1
 ```
 
-源码不包含化学软件安装。目标节点需要访问以下环境：
+推荐普通用户直接下载 [V1.1 Release](https://github.com/Zoanthamine/Auto-ConfoNMR/releases/tag/V1.1) 的 `Auto_ConfoNMR_V1.1_runtime.zip`，解压后已含 `confonmr-resources/` 的实际程序、参数与工作簿。克隆源码的用户另下载 `Auto_ConfoNMR_V1.1_linux_resources.tar.gz`，在程序根目录解压。大型二进制放在 Release 中，Git 仓库保留其说明、许可和哈希清单。
+
+目标节点需要访问以下环境：
 
 |软件或资源|用途|配置位置|
 |---|---|---|
@@ -243,14 +247,14 @@ git checkout V1.1
 |Python 及 numpy、openpyxl|执行脚本、读写数值和工作簿|`python`；依赖见 `requirements.txt`|
 |Gaussian、同安装的 formchk|静电势、优化、频率、NMR|`software.g16/formchk`、`gaussian_profile`|
 |ORCA、发行包要求的 OpenMPI|单点能|`software.orca/openmpi`，MPI 填安装根目录|
-|CREST、配套 xTB 与数据/库|GFN 精修|`software.crest`，xTB 的 bin 目录加入 PATH|
+|CREST、xTB（运行包已含）|GFN 精修|`software.crest`；资源包 `bin` 加入 `path_prepend`|
 |GROMACS|动力学|`software.gmx` 或对应 module|
 |VMD 完整安装|轨迹提取|`software.vmd`，填写实际执行文件|
 |Open Babel|结构格式转换|`software.obabel`|
-|Multiwfn 无图形版本及配置|电荷拟合|`software.multiwfn`|
-|Shermo|热校正与构象分布|`software.shermo`|
-|Molclus 辅助程序、Sobtop、力场数据|聚类、拓扑及格式转换|`resource_bundle`|
-|上游 DP4+/STS 工作簿|可追溯工作簿导出|资源包内 `upstream/`|
+|Multiwfn 无图形版本及配置（运行包已含）|电荷拟合|`software.multiwfn`|
+|Shermo（运行包已含）|热校正与构象分布|`software.shermo`|
+|Molclus 辅助程序、Sobtop、力场数据（已含）|聚类、拓扑及格式转换|`resource_bundle`|
+|DP4+/STS 接口工作簿（已含）|可追溯工作簿导出|资源包内 `upstream/`|
 
 软件须合法取得，并与自动输入参数及菜单兼容。VMD 不能只复制一个二进制，配置示例使用 `lib/vmd/vmd_LINUXAMD64`；Multiwfn 菜单变化可能使自动输入失效。ORCA 的 OpenMPI 应匹配其发行要求；GROMACS 的 FFTW、编译器运行库等依赖按实际构建配置，不能任意拼接版本。
 
@@ -295,21 +299,33 @@ module load 7/mathlib/fftw3-double-openmpi_3.3.8
 
 没有 module 时，先独立安装软件及依赖，设置 `modules: []`，填写绝对路径，将必要的 bin 和库目录加入两个路径数组。环境生成顺序为 module、PATH/库路径、Gaussian profile、Multiwfn 路径。若有 module 但批处理内不可用，需要在本站 Shell 初始化中配置 Environment Modules/Lmod。
 
-### 3. 准备辅助资源包
+### 3. 使用随附的辅助资源
 
-按以下结构放置匹配的完整资源，保留二进制执行权限：
+运行包中的 `confonmr-resources/` 已包含所需的 13 个辅助程序/参数文件、两份工作簿，以及 CREST、xTB、Shermo、Multiwfn。完整文件表、版本、原作者链接与引用见 [资源包 README](confonmr-resources/README.md)。不需要再单独搜集这些文件。
 
-```text
-confonmr-resources/
-├── isostat、sobtop、sobtop.ini、atomtype、mol2_xyz、xyz2QC
-├── ATOMTYPE_AMBER.DEF、ATOMTYPE_GFF.DEF、CORR_NAME_TYPE.DAT
-├── LJ_param.dat、assign_AT.dat、bondcrit.dat、bonded_param.dat
-└── upstream/
-    ├── DP4plus.xlsx
-    └── STS.xlsx
+在 `config/cluster.json` 中，将下列路径改成实际解压位置：
+
+|配置项|使用随附资源时填写|
+|---|---|
+|`resource_bundle`|`/实际程序目录/confonmr-resources`|
+|`software.crest`|`/实际程序目录/confonmr-resources/bin/crest`|
+|`software.shermo`|`/实际程序目录/confonmr-resources/bin/Shermo`|
+|`software.multiwfn`|`/实际程序目录/confonmr-resources/multiwfn/Multiwfn_noGUI`|
+|`path_prepend`|数组中加入 `/实际程序目录/confonmr-resources/bin`|
+
+建项目时会把 Sobtop 的 Multiwfn/Open Babel 路径从集中配置写入快照，并为随附 xTB 设置参数目录。二进制只适用于 Linux x86-64；换到其他架构或不兼容的 Linux 系统时，需自行安装对应版本并修改上述路径。程序包不提供 Gaussian、ORCA/OpenMPI、GROMACS、VMD、Open Babel、Python 或 PBS，仍需按第 1、2 节准备。
+
+先校验文件与权限：
+
+```bash
+cd /path/to/Auto_ConfoNMR/confonmr-resources
+sha256sum -c SHA256SUMS.txt
+chmod +x bin/crest bin/xtb bin/Shermo multiwfn/Multiwfn_noGUI \
+  isostat sobtop atomtype mol2_xyz xyz2QC optional/molclus/molclus
+cd ..
 ```
 
-每个名称均为独立文件。辅助程序和参数文件应来自兼容版本，不能只准备可执行文件。上游工作簿须与 `calibration.json` 记录的来源匹配；修改训练参数或工作簿应单独审核。本公共包不携带这些第三方二进制、力场资源和工作簿。
+DP4+ 接口工作簿是提取工具处理上游 `custom-dp4plus.xlsx` 后保存的版本，哈希与加密原表不同；STS 工作簿与固定来源一致。请保留资源目录和 `calibration.json` 的对应关系，不要用网上同名表直接替换。更换统计参数或工作簿需要单独审核。
 
 ### 4. 检查并试运行
 
@@ -318,7 +334,8 @@ confonmr-resources/
 ```bash
 /path/to/env/bin/python -m pip install -r requirements.txt
 /path/to/env/bin/python cluster_config.py check
-/path/to/env/bin/python -m unittest discover -v
+# 完整源码仓库可运行测试；运行包不含 tests 目录
+/path/to/env/bin/python -m unittest discover -s tests -v
 ```
 
 配置检查验证字段、路径及资源完整性，不等于所有软件都能在节点启动。随后按日常步骤建立一个小规模项目，限制 DFT 构象预算，检查真实软件调用、频率、权重、命名和输出。至少两个候选及审核后的实验归属才能验证相对结构比较。环境验证成功后再开展完整采样。
@@ -331,7 +348,7 @@ confonmr-resources/
 
 V1.1 已完成单候选、两个 DFT 构象的真实集群验证：动力学搜索、GFN 精修、优化、正频率、ORCA 单点、Shermo 分布、三组 NMR、加权导出与文件整理均完成，PBS 返回码为 0。两个构象是该次验证的预算，不是通用推荐采样数量。
 
-DP4+/STS 的解析和统计有回归测试，但上述单候选验证不构成多候选真实数据比较的端到端验收。四候选完整实算验收仍在进行，软件运行验证与科学适用性验证分别记录。
+DP4+/STS 的解析和统计通过回归测试。软件运行验证与科学适用性验证分别记录。
 
 ## 参考与许可
 
@@ -341,4 +358,4 @@ DP4+/STS 的解析和统计有回归测试，但上述单候选验证不构成�
 - 流程相关讨论：[计算化学公社帖子 41199](http://bbs.keinsci.com/forum.php?mod=viewthread&tid=41199&page=1&extra=#pid270367)。
 - 软件说明：[Gaussian](https://gaussian.com/)、[ORCA](https://www.faccts.de/docs/orca/6.1/manual/)、[CREST](https://crest-lab.github.io/crest-docs/)、[xTB](https://xtb-docs.readthedocs.io/)、[GROMACS](https://manual.gromacs.org/)、[VMD](https://www.ks.uiuc.edu/Research/vmd/)、[Open Babel](https://openbabel.org/docs/)、[Molclus](http://www.keinsci.com/research/molclus.html)、[Sobtop](http://sobereva.com/soft/Sobtop/)、[Shermo](http://sobereva.com/soft/shermo/)、[Multiwfn](http://sobereva.com/multiwfn/)。使用时应同时引用所用方法与软件的原始文献。
 
-本版本暂未附带开源许可证；第三方软件、资源及工作簿分别受其自身许可约束。详见 [LICENSE_NOTICE.md](LICENSE_NOTICE.md)。公开仓库不应包含私有集群配置、凭据、软件二进制和研究数据。
+本版本暂未附带开源许可证；第三方软件、资源及工作簿分别受其自身许可约束。详见 [LICENSE_NOTICE.md](LICENSE_NOTICE.md)。资源包保留原作者许可和引用要求，不改变第三方权利。私有集群配置、凭据和研究数据不随本项目发布。

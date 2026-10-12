@@ -1,0 +1,5 @@
+LICENSE INFORMATION: To use Shermo, you are required to read and agree the following terms:
+(a) Currently Shermo is free of charge and open-source for both academic and commerical usages, anyone is allowed to freely distribute the original or their modified Shermo codes to others.
+(b) Shermo can be distributed as a free component of commercial code. Selling modified version of Shermo may also be granted, however, obtaining prior consent from the original author of Shermo (Tian Lu) is needed.
+(c) If Shermo is utilized in your work, or your own code incorporated any part of Shermo code, the original paper of Shermo (Comput. Theor. Chem., 1200, 113249 (2021) DOI: 10.1016/j.comptc.2021.113249) MUST BE cited in main text of your article or shown in output of your code.
+(d) There is no warranty of correctness of the results produced by Shermo, the author of Shermo does not hold responsibility in any way for any consequences arising from the use of the Shermo.

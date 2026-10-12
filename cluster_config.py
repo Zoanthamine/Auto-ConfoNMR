@@ -78,6 +78,17 @@ def install_resources(site, workflow):
     target.mkdir(parents=True, exist_ok=True)
     for name in EXTERNAL_RESOURCES:
         shutil.copy2(source/name, target/name)
+    # Resolve auxiliary executable paths from the site's single configuration.
+    ini = target/'sobtop.ini'
+    text = ini.read_text(encoding='utf-8')
+    commands = {'Multiwfn_cmd': site['software']['multiwfn'],
+                'OpenBabel_cmd': site['software']['obabel']}
+    for key, command in commands.items():
+        if any(c in command for c in ['\n', '\r', '"']):
+            raise ValueError('Sobtop executable path contains unsupported characters: '+key)
+        text = re.sub(r'(?m)^\s*'+key+r'\s*=.*$',
+                      lambda match: '  '+key+'= "'+command+'"', text)
+    ini.write_text(text, encoding='utf-8')
     upstream = Path(workflow)/'upstream'
     upstream.mkdir(exist_ok=True)
     for name in EXTERNAL_WORKBOOKS:
@@ -105,6 +116,9 @@ def runtime_text(site):
                   'set +u', '# shellcheck disable=SC1090,SC1091', 'if source '+q(profile)+'; then :; else',
                   "  printf 'Gaussian环境初始化失败。\\n' >&2", '  return 1', 'fi', 'set -u',
                   ': "${GAUSS_EXEDIR:?Gaussian profile did not set GAUSS_EXEDIR}"']
+    xtb_data = Path(site['resource_bundle'])/'share/xtb'
+    if xtb_data.is_dir():
+        lines += ['export XTBPATH='+q(str(xtb_data))+':"${XTBPATH:-}"']
     lines += ['export Multiwfnpath='+q(str(Path(site['software']['multiwfn']).parent)), '']
     return '\n'.join(lines)
 

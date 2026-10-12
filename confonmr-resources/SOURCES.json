@@ -1,0 +1,313 @@
+{
+  "platform": "Linux x86-64",
+  "versions": {
+    "crest": "2.12",
+    "xtb": "6.6.1",
+    "Shermo": "2.4.1",
+    "Multiwfn": "3.8(dev) 2023-12-08",
+    "Sobtop": "1.0(dev3.1)"
+  },
+  "modifications": {
+    "sobtop.ini": "Only site executable paths replaced; project creation fills actual configured paths.",
+    "multiwfn/settings.ini": "Only lastfile history cleared."
+  },
+  "official_binary_hashes_verified": [
+    "bin/crest",
+    "bin/xtb"
+  ],
+  "workbook_origin_commit": "095dbc16db04b40371edfaa61a03aa581e5c7d93",
+  "workbook_note": "DP4plus.xlsx is the processed/decrypted interface; calibration.json records the encrypted original hash. STS.xlsx matches upstream byte for byte.",
+  "source_archives": [
+    {
+      "name": "xtb-6.6.1-source.tar.xz.sha256",
+      "url": "https://github.com/grimme-lab/xtb/releases/download/v6.6.1/xtb-6.6.1-source.tar.xz.sha256",
+      "bytes": 90,
+      "sha256": "287271ef49b8cc5bb215cafb4ea8df311dce5cca145831f6de44e695a5c4a35f"
+    },
+    {
+      "name": "crest-v2.12-source.tar.gz",
+      "url": "https://codeload.github.com/crest-lab/crest/tar.gz/refs/tags/v2.12",
+      "bytes": 519089,
+      "sha256": "390f0ac0aedafbd6bb75974fcffefe7e0232ad6c4ea0ab4f1a77e656a3ce263d"
+    },
+    {
+      "name": "xtb-6.6.1-source.tar.xz",
+      "url": "https://github.com/grimme-lab/xtb/releases/download/v6.6.1/xtb-6.6.1-source.tar.xz",
+      "bytes": 5888468,
+      "sha256": "de0b8d4515f3c878456d9f0f83d4922a55f2b4cbb9c56fe68df559ecd284ff86"
+    },
+    {
+      "name": "dftd4-v3.4.0.tar.gz",
+      "url": "https://codeload.github.com/dftd4/dftd4/tar.gz/v3.4.0",
+      "bytes": 226380,
+      "sha256": "f3b0a16a952817ae48e819626e13676fba3b61c8beea47b0f8ada2fbb679fb7b"
+    },
+    {
+      "name": "mstore-v0.2.0.tar.gz",
+      "url": "https://codeload.github.com/grimme-lab/mstore/tar.gz/v0.2.0",
+      "bytes": 240180,
+      "sha256": "95edba88afbc8013f57f4c818a97c0500cc40b158bed11234c061b2b6d7e480d"
+    },
+    {
+      "name": "multicharge-v0.2.0.tar.gz",
+      "url": "https://codeload.github.com/grimme-lab/multicharge/tar.gz/v0.2.0",
+      "bytes": 38484,
+      "sha256": "953e2ace2f4035b1fa8ecf680f90b5ce6ad5caae17c8d8ccbc2578b92b69d3e7"
+    },
+    {
+      "name": "s-dftd3-v0.6.0.tar.gz",
+      "url": "https://codeload.github.com/dftd3/simple-dftd3/tar.gz/v0.6.0",
+      "bytes": 439438,
+      "sha256": "4bef311f8e5a2c32141eddeea65615c3c8480f917cd884488ede059fb0962a50"
+    },
+    {
+      "name": "test-drive-v0.3.0.tar.gz",
+      "url": "https://codeload.github.com/fortran-lang/test-drive/tar.gz/v0.3.0",
+      "bytes": 23149,
+      "sha256": "ae54b9e63dce723a3ac3ef32a637ed24119cb344b34792a90d3e9ec7440b6174"
+    },
+    {
+      "name": "toml-f-v0.2.3.tar.gz",
+      "url": "https://codeload.github.com/toml-f/toml-f/tar.gz/v0.2.3",
+      "bytes": 94058,
+      "sha256": "679e36daf1be40e187e3488e6aa44e33e27dd426ba1947f816563d20d063e02a"
+    }
+  ],
+  "files": [
+    {
+      "file": "assign_AT.dat",
+      "bytes": 1251,
+      "sha256": "cd96ebd53e087a72f1eccab95d41f51581825cfe1e650de27434a903090d429f"
+    },
+    {
+      "file": "atomtype",
+      "bytes": 192208,
+      "sha256": "e53b0ade8043d9a0bbceac9d63384ff8f244394a8accec9f0c379ccce91d8f08"
+    },
+    {
+      "file": "ATOMTYPE_AMBER.DEF",
+      "bytes": 7057,
+      "sha256": "f07888e09394e95f6940a4a54d5b874e6ead019bb0045adf0c6f9a15a85fa6fe"
+    },
+    {
+      "file": "ATOMTYPE_GFF.DEF",
+      "bytes": 16851,
+      "sha256": "33631b041f3f5f88434e2ae395734eaa1094fa3da0babbadf78c6b3266132e80"
+    },
+    {
+      "file": "bin/crest",
+      "bytes": 28989840,
+      "sha256": "ac9cbe9ea270aa2288d5d83b3c40400ad9c39124459b57d257e48c02217a5a6d"
+    },
+    {
+      "file": "bin/Shermo",
+      "bytes": 1511931,
+      "sha256": "b44856c727610120fde10865714ef2c11783a4d929ca6274cf59d122be6991d4"
+    },
+    {
+      "file": "bin/xtb",
+      "bytes": 55484128,
+      "sha256": "3a4fb07254a1097076d6eb4526330621505f5677bf4fcb6165e835a8d940c5f4"
+    },
+    {
+      "file": "bondcrit.dat",
+      "bytes": 434,
+      "sha256": "ba7e51a9da408e206cd6e245da9ad7576b0188b491b9b2a921f7ed83b88be116"
+    },
+    {
+      "file": "bonded_param.dat",
+      "bytes": 267053,
+      "sha256": "000637d5f1e6c06426feebfa62bd3953c1b51bac0120b2d63bdac8a514859941"
+    },
+    {
+      "file": "CORR_NAME_TYPE.DAT",
+      "bytes": 1445,
+      "sha256": "f7138c8d5d9a10ab02c577be76597201212465da3711dbfc34861f7d5d81f968"
+    },
+    {
+      "file": "isostat",
+      "bytes": 2818965,
+      "sha256": "1605925c66bcbe8ea555b2c66d1d013744547e8c7fbd95c3e4eaf2a535d2bd28"
+    },
+    {
+      "file": "licenses/crest-license.txt",
+      "bytes": 35149,
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    },
+    {
+      "file": "licenses/crest-v2.12/COPYING",
+      "bytes": 35149,
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    },
+    {
+      "file": "licenses/crest-v2.12/COPYING.LESSER",
+      "bytes": 7652,
+      "sha256": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118"
+    },
+    {
+      "file": "licenses/xtb-6.6.1/COPYING",
+      "bytes": 35149,
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    },
+    {
+      "file": "licenses/xtb-6.6.1/COPYING.LESSER",
+      "bytes": 7652,
+      "sha256": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118"
+    },
+    {
+      "file": "licenses/xtb-6.6.1/share/licenses/mctc-lib/jsonfortran/LICENSE",
+      "bytes": 2849,
+      "sha256": "93ea4d9f66cf7f4598292a8f4e3f9797f10465bd37fc4d49d07c6c03c2f63d88"
+    },
+    {
+      "file": "licenses/xtb-license.txt",
+      "bytes": 35149,
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    },
+    {
+      "file": "LJ_param.dat",
+      "bytes": 19763,
+      "sha256": "785ddb1831143b79ccb9711b9145ed756ab5773ecfdcc258ccc8315622fbbfc5"
+    },
+    {
+      "file": "mol2_xyz",
+      "bytes": 922198,
+      "sha256": "d4dc27fab7a165078552e082108b03c894209f5921c18b26eae97a0f71783e26"
+    },
+    {
+      "file": "multiwfn/LICENSE.txt",
+      "bytes": 1187,
+      "sha256": "ccb65c5e7a7c16ff78f6c362dec2baa96a2620a2921773859c23b150bf5ea532"
+    },
+    {
+      "file": "multiwfn/Multiwfn_noGUI",
+      "bytes": 40175325,
+      "sha256": "c20d4a320974f41b553929b9000a8b79c60cdbc39028ff6ae29659b3ac469e24"
+    },
+    {
+      "file": "multiwfn/settings.ini",
+      "bytes": 19422,
+      "sha256": "f74c64e20012d72938751fb94951dc0d745c715474745253688ca104a433e4fc"
+    },
+    {
+      "file": "notices/Molclus_LICENSE.txt",
+      "bytes": 764,
+      "sha256": "d1fa92d805a4ee14e46e0f9208186ef66964292052e9170fba7ba9f177a704e6"
+    },
+    {
+      "file": "notices/Shermo_LICENSE.txt",
+      "bytes": 971,
+      "sha256": "1e0fc30a5f381f5944bdf4b929add94c8e5983396ee4fabef60942c0149121ac"
+    },
+    {
+      "file": "optional/molclus/molclus",
+      "bytes": 1131178,
+      "sha256": "9a5bfffb298f57de4b513a36b202c98d02cc9a39746bcf887c129e58c6057e9b"
+    },
+    {
+      "file": "README.md",
+      "bytes": 6744,
+      "sha256": "6da767265db4b62ac69cfdcccb3ff2395f7697ccc329701ce919ab53d4a9b28a"
+    },
+    {
+      "file": "share/licenses/mctc-lib/jsonfortran/LICENSE",
+      "bytes": 2849,
+      "sha256": "93ea4d9f66cf7f4598292a8f4e3f9797f10465bd37fc4d49d07c6c03c2f63d88"
+    },
+    {
+      "file": "share/xtb/.param_gfnff.xtb",
+      "bytes": 10664,
+      "sha256": "5cf2d1259dd3c65aa9594ea32a0c9a21bb819b6e16b81521888c5a3a1ec513e8"
+    },
+    {
+      "file": "share/xtb/param_gfn0-xtb.txt",
+      "bytes": 39220,
+      "sha256": "278461cabbf89b14379aedc78ef3e141c8cef1f911f3a3c72530aec7a52b6d34"
+    },
+    {
+      "file": "share/xtb/param_gfn1-si-xtb.txt",
+      "bytes": 28007,
+      "sha256": "f878fd7f8eea16f326aff283fbc7ca23800045992c0f86536e18ad91816cf7ca"
+    },
+    {
+      "file": "share/xtb/param_gfn1-xtb.txt",
+      "bytes": 27800,
+      "sha256": "81a9d7afdee31f5d8fd67a4d8ec966179317c7b100261c9c82d724bafb460399"
+    },
+    {
+      "file": "share/xtb/param_gfn2-xtb.txt",
+      "bytes": 35849,
+      "sha256": "f6f05c6c5264cb2f75c54f8ac6838044541c1e493b16f1a4d4ee4fa64de5f545"
+    },
+    {
+      "file": "share/xtb/param_ipea-xtb.txt",
+      "bytes": 27805,
+      "sha256": "08a39b7854b915501d8ba87b7d3330f28932f293479a0dc52b502f039c19f122"
+    },
+    {
+      "file": "sobtop",
+      "bytes": 17798901,
+      "sha256": "ad187184e126d0c227399843944e469ff83c4ab35a6a4baa717340d84d8e054c"
+    },
+    {
+      "file": "sobtop.ini",
+      "bytes": 824,
+      "sha256": "c177f212bc2a3232019722e7a447ceb565ecd4c10bc75502577c7225834f3b17"
+    },
+    {
+      "file": "sources/crest-v2.12-source.tar.gz",
+      "bytes": 519089,
+      "sha256": "390f0ac0aedafbd6bb75974fcffefe7e0232ad6c4ea0ab4f1a77e656a3ce263d"
+    },
+    {
+      "file": "sources/xtb-6.6.1-source.tar.xz",
+      "bytes": 5888468,
+      "sha256": "de0b8d4515f3c878456d9f0f83d4922a55f2b4cbb9c56fe68df559ecd284ff86"
+    },
+    {
+      "file": "sources/xtb-dependencies/dftd4-v3.4.0.tar.gz",
+      "bytes": 226380,
+      "sha256": "f3b0a16a952817ae48e819626e13676fba3b61c8beea47b0f8ada2fbb679fb7b"
+    },
+    {
+      "file": "sources/xtb-dependencies/mstore-v0.2.0.tar.gz",
+      "bytes": 240180,
+      "sha256": "95edba88afbc8013f57f4c818a97c0500cc40b158bed11234c061b2b6d7e480d"
+    },
+    {
+      "file": "sources/xtb-dependencies/multicharge-v0.2.0.tar.gz",
+      "bytes": 38484,
+      "sha256": "953e2ace2f4035b1fa8ecf680f90b5ce6ad5caae17c8d8ccbc2578b92b69d3e7"
+    },
+    {
+      "file": "sources/xtb-dependencies/s-dftd3-v0.6.0.tar.gz",
+      "bytes": 439438,
+      "sha256": "4bef311f8e5a2c32141eddeea65615c3c8480f917cd884488ede059fb0962a50"
+    },
+    {
+      "file": "sources/xtb-dependencies/test-drive-v0.3.0.tar.gz",
+      "bytes": 23149,
+      "sha256": "ae54b9e63dce723a3ac3ef32a637ed24119cb344b34792a90d3e9ec7440b6174"
+    },
+    {
+      "file": "sources/xtb-dependencies/toml-f-v0.2.3.tar.gz",
+      "bytes": 94058,
+      "sha256": "679e36daf1be40e187e3488e6aa44e33e27dd426ba1947f816563d20d063e02a"
+    },
+    {
+      "file": "upstream/DP4plus.xlsx",
+      "bytes": 7191912,
+      "sha256": "0b09eb9e5e0087d3109f0eb5af26cccc14e7cff457a6cae42c855aa59ebad0ae"
+    },
+    {
+      "file": "upstream/STS.xlsx",
+      "bytes": 215136,
+      "sha256": "75c0a4a7dc205e1262015b5fe2232a164e362c7077c6cfb65f813f2e7f789305"
+    },
+    {
+      "file": "xyz2QC",
+      "bytes": 989634,
+      "sha256": "f1df4ce17d1be69c727928a1f850251e03b07b0d2c91b2cd376a99a4811b878c"
+    }
+  ]
+}

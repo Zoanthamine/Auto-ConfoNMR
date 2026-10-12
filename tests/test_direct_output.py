@@ -12,7 +12,7 @@ from unittest.mock import patch
 import nmrflow as nf
 import project_views as pv
 import sampling as sp
-from test_nmrflow import gaussian
+from tests.test_nmrflow import gaussian
 
 
 class DirectOutputChecks(unittest.TestCase):

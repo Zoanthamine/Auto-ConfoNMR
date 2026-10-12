@@ -62,6 +62,22 @@ class ClusterConfigurationChecks(unittest.TestCase):
         (Path(self.site['resource_bundle'])/'upstream/STS.xlsx').unlink()
         with self.assertRaisesRegex(ValueError, 'STS.xlsx'): cc.install_resources(self.site, target)
 
+    def test_portable_resource_paths_and_xtb_data(self):
+        self.resources()
+        source = Path(self.site['resource_bundle'])
+        (source/'share/xtb').mkdir(parents=True)
+        (source/'sobtop.ini').write_text(
+            '  nthreads= 4\n  k_method= 2\n  Multiwfn_cmd= "old"\n  OpenBabel_cmd= "old"\n')
+        target = self.base/'workflow'
+        cc.install_resources(self.site, target)
+        actual = (target/'resources/sobtop.ini').read_text()
+        self.assertIn('nthreads= 4', actual)
+        self.assertIn('k_method= 2', actual)
+        self.assertIn('Multiwfn_cmd= "'+self.site['software']['multiwfn']+'"', actual)
+        self.assertIn('OpenBabel_cmd= "'+self.site['software']['obabel']+'"', actual)
+        self.assertNotIn('"old"', actual)
+        self.assertIn('export XTBPATH=', cc.runtime_text(self.site))
+
     def test_scheduler_cores_memory_coupled(self):
         site = self.load()
         site['scheduler']['node_resource'] = 'select=1:ncpus={cores}:mem={memory_gb}gb'
@@ -72,7 +88,8 @@ class ClusterConfigurationChecks(unittest.TestCase):
 
     def test_runtime_quotes_paths_and_modules(self):
         site = self.load()
-        site['python'] = str(self.base/'env/bin/python')
+        site['python'] = '/migration/env/bin/python'
+        site['software']['multiwfn'] = '/migration/Multiwfn_noGUI'
         site['modules'] = ['gromacs/2024']
         site['path_prepend'] = ["/a path/has'quote"]
         text = cc.runtime_text(site)
