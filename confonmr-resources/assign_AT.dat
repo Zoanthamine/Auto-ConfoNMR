@@ -1,0 +1,38 @@
+;This file defines rule of determining atom types according to bondings and distances
+;The lines beginning with semicolon are comment lines
+;
+;Each atom type starts with $ symbol, then optionally followed by atomic charge. &
+;Specific definitions are given in the next line(s), the following constraint(s) can be used, each one occupies a line
+;  nbond: The number of bonds the atom must form.
+;  element: The element of the atom must be
+;  bond: The bonding relationship must comply. The number of terms can be less than nbond. &
+;For example, "bond -1 C 2 O 1 H" means the atom must simultaneously bond to a carbon with aromatic bond, &
+;to an oxygen with double bond, and to a hydrogen with single bond.
+;  dist: The distance criteria must comply. For example, "dist 1.05-1.1 C 1.05-1.1 C 1.19-999 O" &
+;means the distance between this atom and two carbons must be both 1.05-1.1 A, at the same time, &
+;the distance between this atom and an oxygen must be 1.19-999 A (i.e. at least 1.19 A).
+;
+;Examples:
+;$C_ar
+;nbond 3
+;element C
+;bond -1 C -1 C 1 H
+;
+;$C_CH3
+;nbond 4
+;bond 1 H 1 H 1 H
+;
+;$H_CH3 0.1
+;nbond 1
+;dist 1.05-1.1 C
+
+$Ctest
+nbond 4
+
+$Si_bulk 1.1
+nbond 4
+element Si
+
+$O_bulk -0.55
+nbond 2
+element O
