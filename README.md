@@ -271,6 +271,14 @@ cp config/cluster.example.json config/cluster.json
 
 module 用于加载集群已有软件，不负责安装。将本站模块写入数组；无 module 时填写独立安装路径及必要库目录。ORCA/OpenMPI 需按发行要求配套。PBSPro 可使用 `select=1:ncpus={cores}:mem={memory_gb}gb`，Torque 可使用 `nodes=1:ppn={cores}`；Slurm/LSF 需要另写提交适配。
 
+#### 不熟悉集群配置时
+
+如果对 Linux、module 或 PBS 不太熟悉，可以请能访问文件和终端的 AI 助手协助配置。让它结合本 README、`config/cluster.example.json` 和集群实际环境，查找已安装的软件、填写路径和队列，并解释配置检查中的报错。可以把下面这段话交给它：
+
+> 请帮我在这台 Linux/PBS 集群配置 Auto ConfoNMR。先阅读 README 和配置示例，检查已有软件、module、Python 环境及可用队列，再填写 config/cluster.json。不确定的路径和版本请先核实，计算方法、溶剂、G09Defaults 和统计参数保持原设置。完成后检查配置，并协助建立一个小规模项目试运行。
+
+集群登录在本机完成认证，不需要在聊天中提供密码或私钥。配置完成后，按下一节检查资源并试运行。
+
 ### 3. 检查资源并试运行
 
 ```bash
