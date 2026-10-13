@@ -1,6 +1,6 @@
 # Linux 辅助资源包
 
-本目录随 Auto ConfoNMR V1.2 的运行包提供。文件是实际程序和数据，不是软链接。适用于 **Linux x86-64**；不适用于 Windows、macOS 或 ARM。二进制来自已验证环境，未升级为官网当前最新版。
+本目录直接包含在 Git 仓库和 Auto ConfoNMR V1.2 运行包中。文件是实际程序和数据，不是软链接。适用于 **Linux x86-64**；不适用于 Windows、macOS 或 ARM。二进制来自已验证环境，未升级为官网当前最新版。
 
 ## 包含什么
 
@@ -21,7 +21,7 @@ Sobtop 二进制实际标识为 dev3.1，不能根据原安装目录名把它写
 
 ## 怎么接入
 
-运行包已将本目录放在程序根目录下。克隆源码的用户可从 [V1.2 Release](https://github.com/Zoanthamine/Auto-ConfoNMR/releases/tag/V1.2) 下载 `Auto_ConfoNMR_V1.2_linux_resources.tar.gz`，在程序根目录解压。目录结构应为：
+克隆仓库或解压运行包后，本目录已经位于程序根目录，无需另外下载或解压资源。可先浏览 `bin/`、`multiwfn/` 和 `upstream/`，确认程序和工作簿。目录结构为：
 
 ```text
 Auto_ConfoNMR/
@@ -66,7 +66,7 @@ Multiwfn 这里只提供 V1.2 电荷拟合所用的无图形程序和设置，�
 
 ## 许可与引用
 
-资源保持原作者权利，不随 Auto ConfoNMR 重新授权。CREST/xTB 保留上游 GPL/LGPL 许可文本和对应版本源码；源码中的构建说明决定重编译所需的编译器、BLAS/LAPACK 及依赖。`sources/xtb-dependencies/` 保存上游 wrap 中固定版本的参考源包，不能据此宣称复现了官方二进制的全部构建环境。
+资源保持原作者权利，不随 Auto ConfoNMR 重新授权。CREST/xTB 保留上游 GPL/LGPL 许可文本和对应版本源码；源码中的构建说明决定重编译所需的编译器、BLAS/LAPACK 及依赖。`sources/` 保留原始源码压缩档，供许可核查和重新编译使用，日常运行无需解压；实际辅助程序与参数均已展开存放。`sources/xtb-dependencies/` 保存上游 wrap 中固定版本的参考源包，不能据此宣称复现了官方二进制的全部构建环境。
 
 Shermo 和 Multiwfn 的原始许可允许分发，并要求引用原论文。Molclus 附带引用要求；Sobtop 官网说明其学术和商业使用免费，使用时应正确引用。后两者与工作簿没有在这里被改为开源软件，也没有额外授予再许可。原作者更新版本或许可时，以对应版本的原始说明为准。
 

@@ -2,7 +2,7 @@
 config/cluster.json
 .site-resources/
 .history/
-upstream/
+/upstream/
 __pycache__/
 *.pyc
 cluster_runtime.sh
@@ -17,3 +17,7 @@ submissions.tsv
 *.log
 *.tar.gz
 *.zip
+
+# Preserve the original corresponding-source archives shipped with these binaries.
+!confonmr-resources/sources/**/*.tar.gz
+!confonmr-resources/sources/*.tar.gz

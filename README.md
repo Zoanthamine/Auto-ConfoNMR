@@ -4,11 +4,22 @@
 
 Auto ConfoNMR 从三维候选结构出发，串联构象搜索、几何优化、频率分析、单点能和 NMR 屏蔽计算，导出构象加权结果，并根据实验归属进行 DP4+/STS 比较。适用于 Linux 集群，目前提供 PBS 单节点提交方式。
 
-普通使用可下载 Release 中的 `Auto_ConfoNMR_V1.2_runtime.zip`，其中包含运行脚本及 Linux x86-64 辅助资源目录；完整源码包另外包含 `tests/` 及参数提取维护工具。测试不参与日常计算。
+日常使用下载 [V1.2 运行包](https://github.com/Zoanthamine/Auto-ConfoNMR/releases/download/V1.2/Auto_ConfoNMR_V1.2_runtime.zip)，解压后即可配置。也可以直接克隆本仓库：脚本、参数、工作簿和 Linux x86-64 辅助程序均按目录存放，可在线浏览。`tests/` 和参数提取工具供开发维护使用，不参与日常计算，运行包不包含它们。
 
 日常操作使用一个建项目脚本和四个项目内脚本。计算条件写在带中文注释的 `project.ini` 中；软件路径、module 和队列设置集中在 `config/cluster.json` 中。
 
-本仓库提供脚本、输入模板和统计参数。Release 运行包另含 CREST、xTB、Shermo、Multiwfn、Molclus/Sobtop 工具及配套资源，见 [资源目录说明](confonmr-resources/README.md)。Gaussian、ORCA 等完整软件环境仍需另行配置。首次安装请先完成后文的[迁移配置](#迁移配置)。
+随附的 CREST、xTB、Shermo、Multiwfn、Molclus/Sobtop 工具及其配套文件见 [辅助资源目录](confonmr-resources/)。Gaussian、ORCA 等完整软件环境仍需另行配置。首次安装请先完成后文的[迁移配置](#迁移配置)。
+
+程序目录中主要使用以下文件：
+
+|入口或目录|用途|
+|---|---|
+|`00_new_project.sh`|建立计算项目|
+|`config/cluster.example.json`|集群配置示例；复制为 `cluster.json` 后填写路径、module 和队列|
+|`resources/`|计算模板与项目配置模板|
+|[`confonmr-resources/`](confonmr-resources/)|辅助程序、参数、工作簿及来源说明|
+|`experiment.example.csv`、`assignments.example.csv`|实验数据与原子归属填写示例|
+|`tests/`|开发维护测试|
 
 ## 日常使用
 
@@ -302,7 +313,7 @@ cd Auto_ConfoNMR
 git checkout V1.2
 ```
 
-推荐普通用户直接下载 [V1.2 Release](https://github.com/Zoanthamine/Auto-ConfoNMR/releases/tag/V1.2) 的 `Auto_ConfoNMR_V1.2_runtime.zip`，解压后已含 `confonmr-resources/` 的实际程序、参数与工作簿。克隆源码的用户另下载 `Auto_ConfoNMR_V1.2_linux_resources.tar.gz`，在程序根目录解压。大型二进制放在 Release 中，Git 仓库保留其说明、许可和哈希清单。
+下载运行包与克隆仓库任选一种。两者均已包含 `confonmr-resources/` 中的实际程序、参数与工作簿，无需再找单独的资源包。运行包适合日常计算；仓库另外保留开发测试及维护工具。随附程序适用于 Linux x86-64，迁移到其他架构时需要自行安装兼容版本。
 
 目标节点需要访问以下环境：
 
