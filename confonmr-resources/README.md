@@ -1,6 +1,6 @@
 # Linux 辅助资源包
 
-本目录随 Auto ConfoNMR V1.1 的运行包提供。文件是实际程序和数据，不是软链接。适用于 **Linux x86-64**；不适用于 Windows、macOS 或 ARM。二进制来自已验证环境，未升级为官网当前最新版。
+本目录随 Auto ConfoNMR V1.2 的运行包提供。文件是实际程序和数据，不是软链接。适用于 **Linux x86-64**；不适用于 Windows、macOS 或 ARM。二进制来自已验证环境，未升级为官网当前最新版。
 
 ## 包含什么
 
@@ -21,7 +21,7 @@ Sobtop 二进制实际标识为 dev3.1，不能根据原安装目录名把它写
 
 ## 怎么接入
 
-运行包已将本目录放在程序根目录下。克隆源码的用户可从 [V1.1 Release](https://github.com/Zoanthamine/Auto-ConfoNMR/releases/tag/V1.1) 下载 `Auto_ConfoNMR_V1.1_linux_resources.tar.gz`，在程序根目录解压。目录结构应为：
+运行包已将本目录放在程序根目录下。克隆源码的用户可从 [V1.2 Release](https://github.com/Zoanthamine/Auto-ConfoNMR/releases/tag/V1.2) 下载 `Auto_ConfoNMR_V1.2_linux_resources.tar.gz`，在程序根目录解压。目录结构应为：
 
 ```text
 Auto_ConfoNMR/
@@ -62,7 +62,7 @@ CREST/xTB 为官方静态编译版，已与官方发行二进制核对 SHA256。
 
 本包不是完整计算环境。**Gaussian/formchk、ORCA 及匹配的 OpenMPI、GROMACS、VMD、Open Babel、Python 与 requirements.txt 中的依赖、PBS** 仍由使用者或集群管理员配置。GROMACS、Open Babel 虽可免费使用，也需要其库和数据目录；VMD 需要完整安装，不能只拿一个执行文件。它们的安装位置与 module 名称写在 `config/cluster.json`。
 
-Multiwfn 这里只提供 V1.1 电荷拟合所用的无图形程序和设置，并非带所有示例、手册和附加原子密度库的完整发行包。Molclus 主程序为附送工具，其独立使用所需的 settings.ini、计算模板和说明请按作者教程准备，不影响本流程调用 isostat。
+Multiwfn 这里只提供 V1.2 电荷拟合所用的无图形程序和设置，并非带所有示例、手册和附加原子密度库的完整发行包。Molclus 主程序为附送工具，其独立使用所需的 settings.ini、计算模板和说明请按作者教程准备，不影响本流程调用 isostat。
 
 ## 许可与引用
 

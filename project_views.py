@@ -160,6 +160,13 @@ def collect(project,copy_logs=False):
     for point in ['upper','lower']:
         for f in (project/'results'/point).glob('*'):
             if f.is_file():expose(f,project/'最终结果'/('上分离点' if point=='upper' else '下分离点')/f.name,point)
+    if copy_logs:
+        from experiment_batch import collect_comparisons
+        comparisons=collect_comparisons(project)
+        for row in comparisons:
+            for f in (project/row['result']).rglob('*'):
+                if f.is_file():
+                    index.append([str(f),str(f.relative_to(project)),'实验比较 '+row['sample'],'复制快照',f.stat().st_size])
     if direct:
         # Index software-generated fixed names too, without copies or symlinks.
         known={row[0] for row in index}
@@ -170,6 +177,13 @@ def collect(project,copy_logs=False):
         import io
         s=io.StringIO(newline='');w=csv.writer(s);w.writerow(headers);w.writerows(rows)
         return '\ufeff'+s.getvalue()
+    atom_rows=[]
+    for candidate in cfg['candidates']:
+        mapping=out/candidate['id']/'sampling/atom_map.json'
+        if mapping.is_file():
+            for row in json.loads(mapping.read_text(encoding='utf-8')):
+                atom_rows.append([candidate['id'],row['calculation_atom'],row['element'],row['input_serial']])
+    atomic_text(project/'原子编号对照.csv',csv_text(['candidate','calculation_atom','element','input_serial'],atom_rows))
     atomic_text(project/'文件索引.csv',csv_text(['原始文件','集中查看位置','阶段','形式','字节数'],index))
     atomic_text(project/'构象分布与混合比例.csv',csv_text(['结构','构象','相对G_kcal_mol','原始分布_percent','NMR混合_percent','用于NMR'],weights))
     storage_note = '本目录直接保存实际计算文件，无需依赖外部scratch链接。\n' if direct else '历史布局：查看目录不改变原始文件；大文件保持链接，普通输入/日志在整理时复制快照。\n'
@@ -186,7 +200,7 @@ def collect(project,copy_logs=False):
                ' / '.join(str(r['nmr'].get(m,0)) for m in ('01','02','03')),r['log_modified'] or '尚无记录']
               for r in live['candidates']])
     page+='<p><a href="实时进度.html">02入口最近一次读取的详细进度快照</a></p>'
-    page+='<h2>构象混合比例</h2><p>每候选内部混合；01/02/03及上下两实验点共享相同分布。99%只针对已计算的DFT集合。</p>'+ht(['结构','构象','ΔG kcal/mol','原始/%','NMR/%','选中'],[[*r[:2],f'{r[2]:.5f}',f'{r[3]:.6f}',f'{r[4]:.6f}' if r[4]!='' else '未做NMR',r[5]] for r in weights])
+    page+='<h2>构象混合比例</h2><p>每候选内部混合；01/02/03及各实验样品共享相同分布。99%只针对已计算的DFT集合。</p>'+ht(['结构','构象','ΔG kcal/mol','原始/%','NMR/%','选中'],[[*r[:2],f'{r[2]:.5f}',f'{r[3]:.6f}',f'{r[4]:.6f}' if r[4]!='' else '未做NMR',r[5]] for r in weights])
     page+='<p><a href="文件索引.csv">完整文件索引</a> · <a href="构象分布与混合比例.csv">权重CSV</a></p><details><summary>展开各软件输入、输出和构型文件</summary><ul>'+links+'</ul></details>'
     page+='<p>力场警告请检查04_采样与软件日志中的topology_quality.json；正常结束与有限预算覆盖率不能证明采样充分。</p></html>'
     atomic_text(project/'计算总览.html',page)

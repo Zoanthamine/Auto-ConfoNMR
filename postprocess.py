@@ -198,9 +198,12 @@ def sts(data, params):
     return result
 
 
-def export(cfg, output, config_dir):
+def export(cfg, output, config_dir, destination=None):
     output.mkdir(parents=True, exist_ok=True)
-    exports = Path(tempfile.mkdtemp(prefix='.exports_pending_',dir=str(output)))
+    destination = Path(destination) if destination is not None else output/'exports'
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    require(not destination.exists() or destination == output/'exports', 'Comparison destination already exists')
+    exports = Path(tempfile.mkdtemp(prefix='.exports_pending_',dir=str(destination.parent)))
     averaged, raw, provenance = {}, [], []
     for candidate in cfg['candidates']:
         cid = candidate['id']
@@ -252,7 +255,7 @@ def export(cfg, output, config_dir):
         save(exports/'comparison_status.json', {'status':'raw_exports_complete_assignment_required',
              'needed':[str(assignments),str(experiments)],'provenance':provenance})
         print('Raw exports complete. Experimental assignments required for DP4+/STS.')
-        publish(exports,output)
+        publish(exports,output,destination)
         return
     exp = table(experiments)
     require(exp and len(set(r['signal'] for r in exp)) == len(exp), 'Empty/duplicate experimental signal ID')
@@ -335,12 +338,12 @@ def export(cfg, output, config_dir):
          'assignments_sha256':digest(assignments),'experiment_sha256':digest(experiments),
          'interpretation':'Relative comparisons within the supplied candidates; custom protocol is not a validated standard probability.'})
     workbook_exports(cfg,assembled,exports)
-    publish(exports,output)
-    print('NMR exports and comparisons complete: '+str(output/'exports'))
+    publish(exports,output,destination)
+    print('NMR exports and comparisons complete: '+str(destination))
 
 
-def publish(staging, output):
-    final = output/'exports'
+def publish(staging, output, destination=None):
+    final = Path(destination) if destination is not None else output/'exports'
     if final.exists():
         final.rename(output/('exports_previous_'+time.strftime('%Y%m%d_%H%M%S')+'_'+staging.name[-6:]))
     staging.rename(final)

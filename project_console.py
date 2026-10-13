@@ -65,13 +65,12 @@ pressure = {P}
 allow_exploratory = true
 # 每个候选必须为每个实验signal提供原子归属；同一甲基3H放一个信号。
 assignments = assignments.csv
-# 默认读取存在的experiment.csv、experiment_upper.csv、experiment_lower.csv。
-# 若归属不同，可分别填写upper_assignments/lower_assignments；空白=共用上面文件。
+# 自动处理根目录全部experiment_样品名.csv，不限制样品数量。
+# 优先使用assignments_样品名.csv，找不到时才使用共用assignments.csv。
+# 删除/移走不参与比较的实验表；不要把同一数据重复保存为不同文件。
+experiment_pattern = experiment_*.csv
+# 兼容单表experiment.csv；不存在时不读取。一般多样品使用上面的命名即可。
 experiment = experiment.csv
-upper_experiment = experiment_upper.csv
-lower_experiment = experiment_lower.csv
-upper_assignments =
-lower_assignments =
 '''.format(**cfg,T=cfg['shermo']['T'],P=cfg['shermo']['P'])
 
 
@@ -82,8 +81,10 @@ set -Eeuo pipefail
 IFS=$'\\n\\t'
 PROJECT_DIR="$(cd -- "$(dirname -- "${{BASH_SOURCE[0]}}")" && pwd)"
 readonly PROJECT_DIR
-exec {python} "$PROJECT_DIR/workflow/project_console.py" {action} "$PROJECT_DIR"
+exec {python} "$PROJECT_DIR/workflow/project_console.py" {action} "$PROJECT_DIR" "$@"
 '''.format(python=shlex.quote(python or PY),action=action)
+        note = {'compare':'# 自动检查所有实验表后逐一比较；仅检查用：bash 03_compare.sh --check-only\n', 'collect':'# 收集所有已完成样品及历史比较结果，不提交计算。\n'}.get(action, '')
+        script=script.replace('set -Eeuo pipefail',note+'set -Eeuo pipefail')
         atomic_text(project/name,script);(project/name).chmod(0o755)
 
 
@@ -138,8 +139,9 @@ def sync(project):
     if not ini.is_file():raise ValueError('缺少项目配置；请先通过00_new_project.sh建立项目')
     p=configparser.ConfigParser(interpolation=None);p.read(ini,encoding='utf-8-sig')
     known_calc={'charge','multiplicity','max_conformers','population_coverage','output','cores','md_threads','memory_gb','orca_maxcore_mb','temperature','pressure'}
-    known_post={'allow_exploratory','assignments','experiment','upper_experiment','lower_experiment','upper_assignments','lower_assignments'}
-    if set(p.sections())!={'方案','计算','对比'} or set(p['方案'])!={'clustering_profile','nmr_profile'} or set(p['计算'])!=known_calc or set(p['对比'])!=known_post:
+    known_post={'allow_exploratory','assignments','experiment','experiment_pattern','upper_experiment','lower_experiment','upper_assignments','lower_assignments'}
+    required_post={'allow_exploratory','assignments','experiment'}
+    if set(p.sections())!={'方案','计算','对比'} or set(p['方案'])!={'clustering_profile','nmr_profile'} or set(p['计算'])!=known_calc or not required_post <= set(p['对比']) or not set(p['对比']) <= known_post:
         raise ValueError('配置的节名或字段有遗漏/拼写错误，请参考原始project.ini')
     if cfg.get('method_layout')!=LAYOUT:raise ValueError('该项目使用历史编号；请用原固定程序，或建立新项目')
     apply_choices(cfg,p.get('方案','nmr_profile').strip(),p.get('方案','clustering_profile').strip())
@@ -223,35 +225,23 @@ def status(project):
     print('打开计算总览.html，或进入过程文件查看；这不会提交计算。')
 
 
-def compare(project):
-    path,cfg,p=sync(project);_,_,out=load_config(project)
-    points=[('single',p.get('对比','experiment'),p.get('对比','assignments')),
-            ('upper',p.get('对比','upper_experiment'),p.get('对比','upper_assignments') or cfg['assignments']),
-            ('lower',p.get('对比','lower_experiment'),p.get('对比','lower_assignments') or cfg['assignments'])]
-    selected=[(name,e,a) for name,e,a in points if e and (Path(project)/e).is_file()]
-    if not selected:raise ValueError('没有找到实验CSV；请上传experiment.csv或experiment_upper/lower.csv')
-    for name,e,a in selected:
-        if not (Path(project)/a).is_file():raise ValueError('缺少归属表：'+a)
-    stamp=datetime.now().strftime('%Y%m%d_%H%M%S_%f')
-    for name,e,a in selected:
-        c=json.loads(json.dumps(cfg));c['experiment']=e;c['assignments']=a
-        point=Path(project)/('job_post_'+name+'.json');atomic_text(point,json.dumps(c,ensure_ascii=False,indent=2)+'\n')
-        log=Path(project)/'运行日志'/('compare_'+name+'_'+stamp+'.log');log.parent.mkdir(exist_ok=True)
-        with log.open('w',encoding='utf-8') as f:
-            r=subprocess.run([sys.executable,str(ROOT/'nmrflow.py'),'post',str(point)],stdout=f,stderr=subprocess.STDOUT)
-        if r.returncode:raise ValueError('后处理停止，原计算未重跑；请看 '+str(log))
-        dest=Path(project)/'results'/(name+'_'+stamp)
-        if dest.exists():raise ValueError('结果目标已存在，拒绝覆盖：'+str(dest))
-        shutil.copytree(out/'exports',dest)
-        atomic_text(Path(project)/'最终结果'/('最新_'+name+'_结果位置.txt'),str(dest)+'\n')
-        print('已完成 '+name+' 对比：'+str(dest))
-    collect(project,True)
+def compare(project,check_only=False):
+    _,cfg,p=sync(project)
+    if not check_only:
+        queue_guard(project)
+    from experiment_batch import run_batch
+    result=run_batch(project,cfg,p,check_only=check_only)
+    if not check_only:
+        collect(project,True)
+        print('本批实验比较已保存；请核对各样品的数据与结果复核.md及信号误差.csv。')
+    return result
 
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('action',choices=['prepare','submit','status','compare','collect']);p.add_argument('project',nargs='?');p.add_argument('--inputs',nargs='+');p.add_argument('--charge',type=int,default=0);p.add_argument('--multiplicity',type=int,default=1);p.add_argument('--cap',type=int,default=6)
     p.add_argument('--nmr-profile',choices=list(NMR_PROFILES),default='legacy_pcm_g09')
     p.add_argument('--clustering-profile',choices=list(CLUSTERS),default='coarse')
+    p.add_argument('--check-only',action='store_true',help='仅检查实验表与原子归属（用于compare）')
     a=p.parse_args()
     if a.action=='prepare':
         if a.project and a.inputs:return prepare(a.project,a.inputs,a.charge,a.multiplicity,a.cap,a.nmr_profile,a.clustering_profile)
@@ -272,7 +262,7 @@ def main():
         project=Path(a.project).resolve()
         if a.action=='submit':submit(project)
         elif a.action=='status':status(project)
-        elif a.action=='compare':compare(project)
+        elif a.action=='compare':compare(project,a.check_only)
         else:print(json.dumps(collect(project,True),ensure_ascii=False))
 
 

@@ -45,7 +45,7 @@ def template_method(method,cfg):
 def apply_choices(cfg,nmr_profile='legacy_pcm_g09',clustering_profile='coarse'):
     if nmr_profile not in NMR_PROFILES:raise ValueError('未知NMR方案：'+nmr_profile)
     if clustering_profile not in CLUSTERS:raise ValueError('未知聚类档位：'+clustering_profile)
-    cfg['protocol']='Auto_ConfoNMR_V1.1_custom'
+    cfg['protocol']='Auto_ConfoNMR_V1.2_custom'
     cfg['method_layout']=LAYOUT
     cfg['nmr_profile']=nmr_profile
     model,defaults,_=NMR_PROFILES[nmr_profile]

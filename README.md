@@ -1,10 +1,10 @@
 # Auto ConfoNMR
 
-自动化构象加权核磁计算与候选结构评估 · **V1.1**
+自动化构象加权核磁计算与候选结构评估 · **V1.2**
 
 Auto ConfoNMR 从三维候选结构出发，串联构象搜索、几何优化、频率分析、单点能和 NMR 屏蔽计算，导出构象加权结果，并根据实验归属进行 DP4+/STS 比较。适用于 Linux 集群，目前提供 PBS 单节点提交方式。
 
-普通使用可下载 Release 中的 `Auto_ConfoNMR_V1.1_runtime.zip`，其中包含运行脚本及 Linux x86-64 辅助资源目录；完整源码包另外包含 `tests/` 及参数提取维护工具。测试不参与日常计算。
+普通使用可下载 Release 中的 `Auto_ConfoNMR_V1.2_runtime.zip`，其中包含运行脚本及 Linux x86-64 辅助资源目录；完整源码包另外包含 `tests/` 及参数提取维护工具。测试不参与日常计算。
 
 日常操作使用一个建项目脚本和四个项目内脚本。计算条件写在带中文注释的 `project.ini` 中；软件路径、module 和队列设置集中在 `config/cluster.json` 中。
 
@@ -72,7 +72,7 @@ NMR 的“任务数”与“构象数”分别显示：一个构象跑完三套�
 
 ### 4. 填写实验数据与原子归属
 
-可以在计算期间准备实验表。复制项目中的 `experiment.template.csv` 为 `experiment.csv`，每个实验信号一行：
+可以在计算期间准备实验表。每个实验样品各准备一张表。复制项目中的 `experiment.template.csv` 为 `experiment_A.csv`，再用 Excel、LibreOffice 或文本编辑器填写，每个信号一行。下面是格式示例，数值与原子号仅作演示，使用时应全部替换：
 
 ```csv
 signal,nucleus,ppm
@@ -84,7 +84,7 @@ H2,H,2.4
 H3,H,7.1
 ```
 
-复制 `assignments.template.csv` 为 `assignments.csv`，为**每个候选的全部信号**填写归属。下面仅示意字段格式，不是真实分子的归属：
+复制 `assignments.template.csv` 为 `assignments_A.csv`，为**每个候选的全部实验信号**填写归属。候选有几个，就重复填写几组；每组的 `signal` 必须与实验表完全一致。下面只展示 `candidate_A` 一组，另一个候选需按其自己的原子编号填写：
 
 ```csv
 candidate,signal,atoms,hybridization,carbon_type,heavy_atom
@@ -111,7 +111,53 @@ DP4+ 使用 `hybridization` 的 `sp2`/`sp3` 分类；氢按其所连原子的环
 
 无对应重原子修正时 `heavy_atom` 填 `None`。`C-S`、`C-Cl`、`C-Br` 支持 `sp3-CH3`、`sp3-CH2/CH/C`、`sp2-CH2`、`sp2-CH`、`sp2-C`、`X-C=O`；`C-OSO2R` 支持前两类饱和碳。超出参数表的组合需要另行评估。工作簿导出要求同一信号在不同候选中的分类兼容，不能为通过检查而改变真实分类。
 
-比较两个实验样品时，分别保存为 `experiment_upper.csv` 和 `experiment_lower.csv`；若归属不同，在 `project.ini` 中填写 `upper_assignments`、`lower_assignments`，留空则共用 `assignments.csv`。程序会处理所有存在且在配置中指定的实验表，因此同一数据不要同时保留为 `experiment.csv`。
+#### 多个样品怎样提交
+
+样品数量与候选数量是两回事。一个实验样品可以与多个候选比较；多个分离产物则各填一张实验表，分别对同一组候选进行评估。程序不会假设各样品必须对应不同候选，也不会强制一一分配。
+
+将这些文件放在项目根目录，与 `03_compare.sh` 同级：
+
+```text
+experiment_A.csv       assignments_A.csv
+experiment_B.csv       assignments_B.csv
+experiment_product3.csv assignments_product3.csv
+experiment_product4.csv assignments_product4.csv
+```
+
+运行 03 时，程序读取全部 `experiment_*.csv`。`A`、`B` 或 `product3` 就是结果中的样品名，使用英文、数字、下划线或短横线。样品可以有一份、两份或更多份，无需为每个样品修改脚本或增加配置项。
+
+归属表按以下顺序选取：`experiment_A.csv` 优先使用 `assignments_A.csv`；该文件不存在时，使用共用的 `assignments.csv`。只有各样品使用相同信号编号和相同归属时才适合共用；信号数、顺序对应关系或归属不同，应分别填写。实验表的行顺序可以不同，程序按 `signal` 对应，不按行号或位移大小配对。
+
+单样品也兼容 `experiment.csv`，其结果名为 `single`，优先使用 `assignments_single.csv`，否则使用共用表。不要同时保留同一数据的 `experiment.csv` 和 `experiment_A.csv`，否则会被当作两个样品；`experiment_single.csv` 与 `experiment.csv` 同时存在会因重名停止。模板文件 `experiment.template.csv` 不参与比较。
+
+#### 手动填表时检查什么
+
+|字段或文件|填写规则|
+|---|---|
+|实验表表头|保留 `signal,nucleus,ppm`；不加标题、合并单元格、备注列或空白数据行|
+|`signal`|同一张实验表内唯一，例如 `C1`、`H2a`；名称只是信号标签，不会自动解释成原子号|
+|`nucleus`|只填 `C` 或 `H`，不写 `13C`、`1H` 或中文|
+|`ppm`|填单个数值，使用小数点；不填 `ppm` 单位、区间、多重峰说明或 `NaN`|
+|`candidate`|使用 `job.json` / `inputs/` 中的候选 ID，区分大小写；每个候选都应覆盖这张实验表的全部信号|
+|`atoms`|填计算原子号，从 1 开始，包含所有元素的统一编号；等价原子用分号，不使用逗号或区间|
+|分类|按结构填写 `hybridization`、碳的 `carbon_type` 和 `heavy_atom`，保留上表规定的英文名称|
+|保存格式|保存为 CSV UTF-8（逗号分隔），不要将 `.xlsx` 改后缀冒充 CSV；修改后重新打开检查|
+
+对照编号时，先在 `过程文件/<候选>/sampling/atom_map.json` 找到原 PDB 的 `input_serial`，读取同一条记录的 `calculation_atom`，再将后者填入 `atoms`。04 还会整理出 `原子编号对照.csv`，可直接用电子表格查看。不同候选的编号必须分别核对，不能假定同一信号在所有结构里编号相同；建议同时在分子查看器中显示 PDB 原子序号核对。
+
+`atoms=4;5;6` 表示三个原子被人工认定为一个等价信号，程序取它们的平均屏蔽。脚本能检查编号、元素和重复使用，不能判断化学等价性。非等价氢即使位移接近，也不能随意合并；未确定归属时不能按计算结果排序填入。
+
+有意排除溶剂峰、杂质峰、无法可靠归属的信号时，实验表与归属表应同时排除，并在原始实验记录中写明理由。不要用零位移或空白行占位。C-only 数据可以用于两组 DP4+ 与 STS；如果加入 H，H 也至少需要三条非退化信号。STS 仅使用 C 数据。所有候选必须比较同一张表的同一信号集合。
+
+计算中的部分等价碳或氢可能只产生一个实验信号，这是允许的；请填写一个等价原子组。未纳入比较的 C/H 原子会提示复核，不会自动补峰。上游 STS 工作簿最多支持 12 个候选、91 条碳信号，DP4+ 工作簿最多支持 128 个候选、300 条信号；这些限制针对每次比较的候选与信号，实验样品文件数量不受它们限制。
+
+如需先检查表格、不做统计比较：
+
+```bash
+bash 03_compare.sh --check-only
+```
+
+它检查每张实验表及其归属表，并显示实际使用的文件。结构准备完成、有原子映射后即可检查；没有映射时会提示等待。检查记录保存在 `运行日志/data_check_*.json`。空表、缺少归属、重复信号/原子、核种不符、非法分类等会停止本批比较；超出常见范围的位移、等价组和未纳入比较的原子列入人工复核提示。**格式检查通过不等于化学归属正确。**
 
 ### 5. 验收、比较与保存
 
@@ -130,11 +176,29 @@ bash 03_compare.sh
 bash 04_collect.sh
 ```
 
-03 读取现有屏蔽结果，不重跑量化计算；每个实验表生成独立的 `results/<点名>_<时间戳>/`，保留之前的结果。至少需要两个候选才能进行 DP4+ 相对比较。单候选仍可完成计算、加权导出和文件整理。
+03 先检查全部实验表，通过后逐个处理。它读取现有屏蔽结果，不重跑量化计算；至少需要两个候选才能进行 DP4+ 相对比较。单候选仍可完成计算、加权导出和文件整理。
 
-查看 `comparison_results.json` 中的概率和误差，以及工作簿、原子映射和条件差异记录。Excel 工作簿需打开并重新计算公式；JSON 中的概率由脚本计算，不依赖 Excel 的公式缓存。最高概率应结合 MAE/RMSE、异常信号、候选集合和其他结构证据解释，不能当作实验样品的异构体浓度。
+每次比较保存为 `results/comparison_<时间戳>/<样品名>/`。每个样品独立生成：
 
-04 更新构型、构象分布、索引和结果汇总。备份整个项目目录，包括 `过程文件/`；04 不代替备份。
+|文件|内容|
+|---|---|
+|`dp4plus_method01_exploratory.xlsx`|01 B3LYP 屏蔽对应的 DP4+ 工作簿|
+|`dp4plus_method02_exploratory.xlsx`|02 mPW1PW91 屏蔽对应的 DP4+ 工作簿|
+|`sts_method03_exploratory.xlsx`|03 wB97XD 屏蔽对应的 STS 工作簿，仅碳|
+|`comparison_results.json`|脚本计算的概率、误差、条件差异与输入哈希|
+|`method01/02/03_comparison_input.csv`|逐信号实验值及各候选的加权屏蔽，用于核对对应关系|
+|`信号误差.csv`|各候选对当前实验表拟合后的逐信号残差；仅用于排查，不是外部预测误差|
+|`数据与结果复核.md`|人工检查清单、自动提示及残差较大的信号|
+
+三个样品会得到九份工作簿；增加样品只需要增加 CSV。输入快照、归属检查记录和实际比较配置保存在同批 `_inputs_<样品名>/`，与结果一起留档。重新运行会创建新批次，不覆盖旧结果。
+
+**比较后请再检查一次数据。** 打开各样品的 `数据与结果复核.md`，对照原始谱图检查实验值、原子号、等价组与分类，再查看异常信号及两组 DP4+/STS 的结果是否冲突。概率很高但归属有误时，结果仍可能明显错误；不要为了得到预期排序而删峰、改分类或调参数。Excel 工作簿需打开并重新计算公式，并与 JSON 核对；JSON 结果不依赖 Excel 缓存。
+
+最高概率应结合 MAE/RMSE、异常信号、候选集合和其他结构证据解释，不能当作实验样品的异构体浓度，也不能排除候选集合以外的结构。多个实验样品得到同一候选排名第一时，不代表程序发生了强制配对，应回看数据和候选是否充分。
+
+04 将所有批次已完成样品的结果与输入快照复制到 `最终结果/实验比较/<批次>/<样品>/`，同时更新 `实验比较索引.csv` 和 `各样品最新结果.csv`。都是实际文件。某样品失败时，已完成结果保留，`batch.json` 记录本批状态；排查后重新运行 03，旧失败现场仍保留。最新完整批次见 `results/latest_batch.json`；“各样品最新结果”可能来自不同批次，索引中标明批次状态，不要误当作同一次完整比较。
+
+04 同时更新构型、构象分布和文件索引。备份整个项目目录，包括 `过程文件/`、`results/` 和原始实验记录；04 不代替备份。
 
 ## 文件组织
 
@@ -212,7 +276,8 @@ Sobtop 若缺少扭转参数，可能将势垒置零；缺少 improper 时可能
 
 |程序|职责|
 |---|---|
-|`project_console.py`|交互建项目、INI 同步、提交、查询和分点比较|
+|`project_console.py`|交互建项目、INI 同步、提交、查询与比较入口|
+|`experiment_batch.py`|发现多样品实验表、检查归属、独立比较及汇总收集|
 |`cluster_config.py`|环境配置、辅助资源检查、Bash 环境生成与 PBS 参数|
 |`sampling.py`|电荷、拓扑、动力学与 GFN 构象筛选|
 |`nmrflow.py`|量化调用、解析、权重、状态、回执与锁|
@@ -234,10 +299,10 @@ Sobtop 若缺少扭转参数，可能将势垒置零；缺少 improper 时可能
 ```bash
 git clone https://github.com/Zoanthamine/Auto-ConfoNMR.git Auto_ConfoNMR
 cd Auto_ConfoNMR
-git checkout V1.1
+git checkout V1.2
 ```
 
-推荐普通用户直接下载 [V1.1 Release](https://github.com/Zoanthamine/Auto-ConfoNMR/releases/tag/V1.1) 的 `Auto_ConfoNMR_V1.1_runtime.zip`，解压后已含 `confonmr-resources/` 的实际程序、参数与工作簿。克隆源码的用户另下载 `Auto_ConfoNMR_V1.1_linux_resources.tar.gz`，在程序根目录解压。大型二进制放在 Release 中，Git 仓库保留其说明、许可和哈希清单。
+推荐普通用户直接下载 [V1.2 Release](https://github.com/Zoanthamine/Auto-ConfoNMR/releases/tag/V1.2) 的 `Auto_ConfoNMR_V1.2_runtime.zip`，解压后已含 `confonmr-resources/` 的实际程序、参数与工作簿。克隆源码的用户另下载 `Auto_ConfoNMR_V1.2_linux_resources.tar.gz`，在程序根目录解压。大型二进制放在 Release 中，Git 仓库保留其说明、许可和哈希清单。
 
 目标节点需要访问以下环境：
 
@@ -346,9 +411,9 @@ DP4+ 接口工作簿是提取工具处理上游 `custom-dp4plus.xlsx` 后保存�
 
 ## 验证范围
 
-V1.1 已完成单候选、两个 DFT 构象的真实集群验证：动力学搜索、GFN 精修、优化、正频率、ORCA 单点、Shermo 分布、三组 NMR、加权导出与文件整理均完成，PBS 返回码为 0。两个构象是该次验证的预算，不是通用推荐采样数量。
+计算主流程在 V1.1 已完成单候选、两个 DFT 构象的真实集群验证：动力学搜索、GFN 精修、优化、正频率、ORCA 单点、Shermo 分布、三组 NMR、加权导出与文件整理均完成，PBS 返回码为 0。两个构象是该次验证的预算，不是通用推荐采样数量。
 
-DP4+/STS 的解析和统计通过回归测试。软件运行验证与科学适用性验证分别记录。
+V1.2 的多样品比较采用模拟 Gaussian 输出与固定上游工作簿进行端到端回归，覆盖三个样品、两组 DP4+ 和一组 STS 的独立导出与收集。量化计算参数和统计公式沿用 V1.1。软件运行验证与科学适用性验证分别记录。
 
 ## 参考与许可
 
