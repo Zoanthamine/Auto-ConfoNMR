@@ -33,12 +33,17 @@ def read_table(path, columns):
     return rows
 
 
-def discover(project, settings):
+def discover(project, settings, allow_empty=False):
     project = Path(project)
     pattern = settings.get('对比', 'experiment_pattern', fallback='experiment_*.csv').strip()
     if not pattern or '/' in pattern or '\\' in pattern or '..' in pattern:
         raise ValueError('experiment_pattern 必须为项目根目录的文件名模式，如 experiment_*.csv')
     found = {}
+    # Module CSVs are separate schemas, never NMR shift samples (even when disabled).
+    reserved={(project/name).resolve() for name in ('experiment_j.csv','experiment_ecd.csv')}
+    for key in ('j_experiment','ecd_experiment'):
+        name=settings.get('模块后处理',key,fallback='').strip()
+        if name:reserved.add((project/name).resolve())
     def add(path, sample, assignment=''):
         path = path.resolve()
         if not path.is_file():
@@ -63,11 +68,12 @@ def discover(project, settings):
         if name:
             add(project/name, sample, settings.get('对比', akey, fallback='').strip() if key != 'experiment' else '')
     for path in sorted(project.glob(pattern)):
+        if path.resolve() in reserved or path.name.endswith(".template.csv"):continue
         if path.name.startswith('experiment_') and path.suffix == '.csv':
             add(path, path.stem[len('experiment_'):])
         else:
             raise ValueError('实验文件应命名为 experiment_样品名.csv：'+path.name)
-    if not found:
+    if not found and not allow_empty:
         raise ValueError('没有实验数据。填写 experiment_样品名.csv 和对应 assignments_样品名.csv（或共用 assignments.csv）。')
     return sorted(found.values(), key=lambda item: item['sample'].casefold())
 

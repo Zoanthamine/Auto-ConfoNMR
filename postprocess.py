@@ -21,6 +21,18 @@ def write_csv(path, columns, rows):
         w.writerows(rows)
 
 
+def verify_nmr_source(log):
+    """Validate the actual generated input as well as the accepted output."""
+    log=Path(log)
+    receipt=log.parent/'receipt.json'
+    require(receipt.is_file(), 'NMR stage receipt/hash mismatch')
+    record=json.loads(receipt.read_text())
+    require(record.get('stage')=='nmr' and record.get('output_sha256')==digest(log)
+            and log.with_suffix('.gjf').is_file()
+            and record.get('input_sha256')==digest(log.with_suffix('.gjf')),
+            'NMR stage receipt/input/output hash mismatch')
+
+
 def beta_fraction(a, b, x):
     """Lentz continued fraction for the regularized incomplete beta."""
     qab, qap, qam = a+b, a+1, a-1
@@ -221,9 +233,7 @@ def export(cfg, output, config_dir, destination=None):
             sums, identity = {}, None
             for row in chosen:
                 parsed = gaussian_read(row['nmr'][method], 'nmr')
-                receipt = Path(row['nmr'][method]).parent/'receipt.json'
-                require(receipt.exists() and json.loads(receipt.read_text())['output_sha256'] == digest(row['nmr'][method]),
-                        'NMR stage receipt/hash mismatch')
+                verify_nmr_source(row['nmr'][method])
                 require(rms(parsed['geometry'],row['geometry']) < 1e-4, 'NMR geometry/manifest mismatch')
                 current = {i:el for i,(el,_) in parsed['shielding'].items()}
                 if identity is None:

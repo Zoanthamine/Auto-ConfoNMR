@@ -16,6 +16,7 @@ from cluster_config import load_site, install_resources, runtime_text, missing_r
 
 from project_views import atomic_text, collect, load_config
 from protocol_options import apply_choices, overview, LAYOUT, NMR_PROFILES, CLUSTERS
+import module_options as mo
 
 ROOT=Path(__file__).resolve().parent
 PY=sys.executable
@@ -71,8 +72,7 @@ assignments = assignments.csv
 experiment_pattern = experiment_*.csv
 # 兼容单表experiment.csv；不存在时不读取。一般多样品使用上面的命名即可。
 experiment = experiment.csv
-'''.format(**cfg,T=cfg['shermo']['T'],P=cfg['shermo']['P'])
-
+'''.format(**cfg,T=cfg['shermo']['T'],P=cfg['shermo']['P'])+mo.settings_text(cfg)
 
 def install_entries(project,workflow,python=None):
     for name,action in ENTRIES.items():
@@ -93,7 +93,7 @@ def manifest(project,workflow):
     atomic_text(project/'程序版本SHA256.json',json.dumps({str(p.relative_to(workflow)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(files)},ensure_ascii=False,indent=2)+'\n')
 
 
-def prepare(project,structures,charge=0,multiplicity=1,cap=6,nmr_profile='legacy_pcm_g09',clustering_profile='coarse'):
+def prepare(project,structures,charge=0,multiplicity=1,cap=6,nmr_profile='legacy_pcm_g09',clustering_profile='coarse',modules=None,module_analysis=None):
     if nmr_profile not in NMR_PROFILES or clustering_profile not in CLUSTERS:raise ValueError('无效方案，尚未建立项目')
     project=Path(project).resolve()
     if project==ROOT.resolve() or ROOT.resolve() in project.parents:
@@ -102,13 +102,14 @@ def prepare(project,structures,charge=0,multiplicity=1,cap=6,nmr_profile='legacy
     structures=[Path(p).resolve() for p in structures]
     if not structures or not all(p.is_file() for p in structures):raise ValueError('未找到明确指定的输入结构')
     site=load_site()
-    missing=missing_resources(site)
+    needs_workbooks=(modules or mo.DEFAULT_MODULES)['base']=='nmr'
+    missing=missing_resources(site,needs_workbooks)
     if missing:raise ValueError('外部资源缺少：'+', '.join(missing))
     subprocess.run([sys.executable,str(ROOT/'init_project.py'),str(project),*[str(p) for p in structures],
                     '--charge',str(charge),'--multiplicity',str(multiplicity)],check=True)
     wf=project/'workflow'
-    shutil.copytree(ROOT,wf,ignore=shutil.ignore_patterns('__pycache__','*.pyc','legacy_original','submissions.tsv','.git','.site-resources','.history'))
-    install_resources(site,wf)
+    shutil.copytree(ROOT,wf,ignore=shutil.ignore_patterns('__pycache__','*.pyc','legacy_original','submissions.tsv','.git','.site-resources','.history','.venv','.validation-wheels','confonmr-resources','VALIDATION_*.json','VALIDATION_*.log'))
+    install_resources(site,wf,needs_workbooks)
     atomic_text(wf/'config/cluster.json',json.dumps(site,ensure_ascii=False,indent=2)+'\n')
     atomic_text(wf/'cluster_runtime.sh',runtime_text(site))
     p=wf/'run_nmr.pbs';s=p.read_text()
@@ -118,6 +119,9 @@ def prepare(project,structures,charge=0,multiplicity=1,cap=6,nmr_profile='legacy
     cfg=json.loads((project/'job.json').read_text())
     cfg['output']='过程文件';cfg['output_layout']='direct_v1';cfg['max_conformers']=cap
     cfg['software']=dict(site['software'])
+    cfg['modules']=modules or dict(mo.DEFAULT_MODULES)
+    cfg['module_analysis']=module_analysis or dict(mo.DEFAULT_ANALYSIS)
+    mo.validate(cfg)
     apply_choices(cfg,nmr_profile,clustering_profile)
     for b in cfg['postprocessing']:b['allow_exploratory']=True
     atomic_text(project/'job.json',json.dumps(cfg,ensure_ascii=False,indent=2)+'\n')
@@ -125,13 +129,18 @@ def prepare(project,structures,charge=0,multiplicity=1,cap=6,nmr_profile='legacy
     atomic_text(project/'计算方案.md',overview(cfg))
     preview_inputs(project,cfg,wf)
     install_entries(project,wf,site['python']);manifest(project,wf)
-    guide=ROOT/'README.md'
+    guide=ROOT/'docs/QUICKSTART_V2.md'
     if guide.exists():shutil.copy2(guide,project/'使用说明.md')
     collect(project,False)
-    print('\nAuto ConfoNMR 项目已经准备好：'+str(project)+'\n请编辑 project.ini，上传实验CSV；然后运行 01_submit.sh。没有提交计算。')
+    atomic_text(project/'模块选择.json',json.dumps({'modules':mo.options(cfg),'analysis':mo.analysis(cfg)},ensure_ascii=False,indent=2)+'\n')
+    templates={'experiment_j.template.csv':'signal,j_hz,mode,bond_count\n',
+               'assignments_j.template.csv':'candidate,signal,atoms_a,atoms_b\n',
+               'experiment_ecd.template.csv':'wavelength_nm,delta_epsilon\n'}
+    for name,text in templates.items():atomic_text(project/name,text)
+    print('\nConfoNMR V2项目已经准备好：'+str(project)+'\n请编辑 project.ini；需要实验比较时填写相应CSV；然后运行 01_submit.sh。没有提交计算。')
 
 
-def sync(project):
+def sync(project,write=True):
     path,cfg,out=load_config(project)
     if path.name!='job.json':raise ValueError('这是已有完成项目的计算配置；仅支持查看/整理，不能用新入口覆盖后重新提交')
     ini=Path(project)/'project.ini'
@@ -141,7 +150,7 @@ def sync(project):
     known_calc={'charge','multiplicity','max_conformers','population_coverage','output','cores','md_threads','memory_gb','orca_maxcore_mb','temperature','pressure'}
     known_post={'allow_exploratory','assignments','experiment','experiment_pattern','upper_experiment','lower_experiment','upper_assignments','lower_assignments'}
     required_post={'allow_exploratory','assignments','experiment'}
-    if set(p.sections())!={'方案','计算','对比'} or set(p['方案'])!={'clustering_profile','nmr_profile'} or set(p['计算'])!=known_calc or not required_post <= set(p['对比']) or not set(p['对比']) <= known_post:
+    if set(p.sections()) not in ({'方案','计算','对比'},{'方案','计算','对比','模块','模块后处理'}) or set(p['方案'])!={'clustering_profile','nmr_profile'} or set(p['计算'])!=known_calc or not required_post <= set(p['对比']) or not set(p['对比']) <= known_post:
         raise ValueError('配置的节名或字段有遗漏/拼写错误，请参考原始project.ini')
     if cfg.get('method_layout')!=LAYOUT:raise ValueError('该项目使用历史编号；请用原固定程序，或建立新项目')
     apply_choices(cfg,p.get('方案','nmr_profile').strip(),p.get('方案','clustering_profile').strip())
@@ -153,6 +162,7 @@ def sync(project):
     cfg['shermo']['T']=p.getfloat('计算','temperature');cfg['shermo']['P']=p.getfloat('计算','pressure')
     cfg['experiment']=p.get('对比','experiment').strip();cfg['assignments']=p.get('对比','assignments').strip()
     for b in cfg['postprocessing']:b['allow_exploratory']=p.getboolean('对比','allow_exploratory')
+    mo.read_settings(p,cfg)
     from nmrflow import validate_config,calculation_config
     validate_config(cfg)
     resolved=json.loads(json.dumps(cfg));resolved['output']=str((Path(project)/cfg['output']).resolve())
@@ -165,8 +175,13 @@ def sync(project):
             existing=json.loads(state.read_text())['identity']['config']
             if existing!=calculation_config(resolved):
                 raise ValueError('已有计算记录，计算配置发生变化。请新建项目；只改实验表/对比开关不需要新计算。')
+    if not write:
+        if calculation_config(prior)!=calculation_config(cfg):
+            raise ValueError('仅检查模式不接受尚未提交的计算条件改动；请核对project.ini与job.json')
+        return path,cfg,p
     atomic_text(path,json.dumps(cfg,ensure_ascii=False,indent=2)+'\n')
     atomic_text(Path(project)/'计算方案.md',overview(cfg))
+    atomic_text(Path(project)/'模块选择.json',json.dumps({'modules':mo.options(cfg),'analysis':mo.analysis(cfg)},ensure_ascii=False,indent=2)+'\n')
     preview_inputs(Path(project),cfg,ROOT)
     return path,cfg,p
 
@@ -174,36 +189,66 @@ def sync(project):
 def preview_inputs(project,cfg,workflow):
     """Publish exact NMR route choices, without inventing molecular coordinates."""
     from protocol_options import nmr_text
-    for mid in cfg['methods']:
+    for mid in (cfg['methods'] if mo.options(cfg)['base']=='nmr' else []):
         source=Path(workflow)/'resources'/('06_tem'+mid+'_nmr.gjf')
         text=nmr_text(source.read_text(),cfg)
         text=re.sub(r'%mem=.*','%mem={}GB'.format(cfg['memory_gb']),text,flags=re.I)
         text=re.sub(r'%nprocshared=.*','%nprocshared={}'.format(cfg['cores']),text,flags=re.I)
         text=re.sub(r'(?m)^0 1$','{} {}'.format(cfg['charge'],cfg['multiplicity']),text)
         atomic_text(Path(project)/'参数预览'/('NMR_'+mid+'_模板_含坐标占位符.gjf'),text)
+    names=[];m=mo.options(cfg)
+    if m['coupling']:names+=['08_coupling_fc.gjf','08_coupling_shielding.gjf']
+    if m['ecd']:names+=['07_tem'+mid+'_ecd.gjf' for mid in m['ecd_methods']]
+    for name in names:
+        text=(Path(workflow)/'resources'/name).read_text(encoding='utf-8')
+        if '_ecd' in name:text=mo.ecd_text(text,cfg)
+        text=re.sub(r'%mem=.*','%mem={}GB'.format(cfg['memory_gb']),text,flags=re.I)
+        text=re.sub(r'%nprocshared=.*','%nprocshared={}'.format(cfg['cores']),text,flags=re.I)
+        text=re.sub(r'(?m)^0 1$','{} {}'.format(cfg['charge'],cfg['multiplicity']),text)
+        atomic_text(Path(project)/'参数预览'/name,text)
 
 
 def queue_guard(project):
     """Fail closed on scheduler outages and reject an active recorded submission."""
     result=subprocess.run(['qstat','-u',getpass.getuser()],capture_output=True,text=True)
     if result.returncode:raise ValueError('调度服务无法核实，暂不提交，防止重复作业：'+result.stderr.strip())
-    record=Path(project)/'提交记录.json'
+    project=Path(project)
+    jobs=set()
+    record=project/'提交记录.json'
     if record.exists():
-        for row in json.loads(record.read_text()):
-            q=subprocess.run(['qstat','-f',row['job_id']],capture_output=True,text=True)
-            if q.returncode==0:
-                m=re.search(r'job_state\s*=\s*(\w+)',q.stdout)
-                if not m or m[1] not in ('C','F'):raise ValueError('已有作业活动中，拒绝重复提交：'+row['job_id'])
-            elif not re.search(r'Unknown Job|Unknown job|Invalid Job',q.stderr+q.stdout,re.I):
-                raise ValueError('无法确认旧作业状态，暂不提交：'+row['job_id'])
+        jobs.update(row['job_id'] for row in json.loads(record.read_text()))
+    submission=project/'SUBMISSION.json'
+    if submission.is_file():
+        job=json.loads(submission.read_text()).get('job_id')
+        if job:jobs.add(job)
+    ledger=project/'workflow/submissions.tsv'
+    if ledger.is_file():
+        for line in ledger.read_text().splitlines():
+            fields=line.split('\t')
+            if len(fields)!=3:raise ValueError('底层提交台账格式异常，请先核对：'+str(ledger))
+            jobs.add(fields[1])
+    for job in sorted(jobs):
+        q=subprocess.run(['qstat','-f',job],capture_output=True,text=True)
+        if q.returncode==0:
+            m=re.search(r'job_state\s*=\s*(\w+)',q.stdout)
+            if not m or m[1] not in ('C','F'):raise ValueError('已有作业活动中，拒绝重复提交：'+job)
+        elif not re.search(r'Unknown Job|Unknown job|Invalid Job',q.stderr+q.stdout,re.I):
+            raise ValueError('无法确认旧作业状态，暂不提交：'+job)
 
 
 def submit(project):
+    from nmrflow import output_lock
+    with output_lock(Path(project)/'运行日志/提交互斥'):
+        return submit_once(project)
+
+
+def submit_once(project):
+    # A queued job reads job.json later: check the queue BEFORE rewriting it.
+    queue_guard(project)
     path,cfg,_=sync(project)
     _,_,out=load_config(project)
     complete=all((out/c['id']/'state.json').is_file() and json.loads((out/c['id']/'state.json').read_text())['status']=='complete' for c in cfg['candidates'])
     if complete:raise ValueError('本项目已经计算完成。复看用02，改实验数据用03，不重新提交。')
-    queue_guard(project)
     print('检查配置、软件和输入，通过后提交一次……',flush=True)
     r=subprocess.run(['bash',str(ROOT/'submit.sh'),str(path)],cwd=str(project),capture_output=True,text=True)
     stamp=datetime.now().strftime('%Y%m%d_%H%M%S_%f')
@@ -215,7 +260,7 @@ def submit(project):
     record=Path(project)/'提交记录.json';rows=json.loads(record.read_text()) if record.exists() else []
     rows.append({'job_id':m[1],'submitted':stamp,'config_sha256':hashlib.sha256(path.read_bytes()).hexdigest()})
     atomic_text(record,json.dumps(rows,ensure_ascii=False,indent=2)+'\n')
-    print('以后运行02_status.sh查看；进度见运行日志/run_*.log；Gaussian/ORCA完整输出见过程文件中的独立日志。')
+    print('以后运行02_status.sh查看；总日志在运行日志/run_*.log，量化正文在过程文件内独立软件日志。')
 
 
 def status(project):
@@ -226,37 +271,84 @@ def status(project):
 
 
 def compare(project,check_only=False):
-    _,cfg,p=sync(project)
-    if not check_only:
-        queue_guard(project)
-    from experiment_batch import run_batch
-    result=run_batch(project,cfg,p,check_only=check_only)
-    if not check_only:
-        collect(project,True)
-        print('本批实验比较已保存；请核对各样品的数据与结果复核.md及信号误差.csv。')
-    return result
+    if not check_only:queue_guard(project)
+    path,cfg,p=sync(project,write=False) if check_only else sync(project)
+    from experiment_batch import discover,run_batch
+    if mo.options(cfg)['base']=='nmr' and discover(project,p,allow_empty=True):
+        result=run_batch(project,cfg,p,check_only=check_only)
+        if not check_only:
+            refresh_modules(project,cfg)
+            collect(project,True)
+        return result
+    if check_only:
+        print('没有核磁位移实验表；未执行比较或模块重新导出。')
+        return {'status':'no_nmr_experiment','samples':[]}
+    # Standalone conformers and raw-only NMR remain usable without experiment CSVs.
+    r=subprocess.run([sys.executable,str(ROOT/'nmrflow.py'),'post',str(path)],check=True)
+    collect(project,True)
+    print('已刷新脚本原始输出；未进行核磁位移实验比较，也没有重跑量化。')
+    return r
 
+
+def refresh_modules(project,cfg):
+    # Independent J/ECD use their explicitly configured experiment tables.
+    from nmrflow import output_lock
+    c=json.loads(json.dumps(cfg));out=(Path(project)/c['output']).resolve();c['output']=str(out)
+    for candidate in c['candidates']:candidate['input']=str((Path(project)/candidate['input']).resolve())
+    with output_lock(out):
+        from conformer_exports import export_all
+        export_all(c,out)
+        if mo.options(c)['coupling']:
+            from coupling import export_all as export_j
+            export_j(c,out,Path(project))
+        if mo.options(c)['ecd']:
+            from ecd import export_all as export_ecd
+            export_ecd(c,out,Path(project))
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('action',choices=['prepare','submit','status','compare','collect']);p.add_argument('project',nargs='?');p.add_argument('--inputs',nargs='+');p.add_argument('--charge',type=int,default=0);p.add_argument('--multiplicity',type=int,default=1);p.add_argument('--cap',type=int,default=6)
     p.add_argument('--nmr-profile',choices=list(NMR_PROFILES),default='legacy_pcm_g09')
     p.add_argument('--clustering-profile',choices=list(CLUSTERS),default='coarse')
-    p.add_argument('--check-only',action='store_true',help='仅检查实验表与原子归属（用于compare）')
+    p.add_argument('--base',choices=['nmr','conformers'],default='nmr')
+    p.add_argument('--conformer-weight',choices=['free_energy','gfn2_energy'],default='free_energy')
+    p.add_argument('--coupling',action='store_true');p.add_argument('--ecd',action='store_true')
+    p.add_argument('--top-n',type=int,default=6)
+    p.add_argument('--check-only',action='store_true',help='仅检查核磁实验表和原子归属，用于compare')
     a=p.parse_args()
     if a.action=='prepare':
-        if a.project and a.inputs:return prepare(a.project,a.inputs,a.charge,a.multiplicity,a.cap,a.nmr_profile,a.clustering_profile)
+        if a.project and a.inputs:
+            m=dict(mo.DEFAULT_MODULES,base=a.base,conformer_weight=a.conformer_weight,coupling=a.coupling,ecd=a.ecd)
+            return prepare(a.project,a.inputs,a.charge,a.multiplicity,a.cap,a.nmr_profile,a.clustering_profile,m,dict(mo.DEFAULT_ANALYSIS,top_n=a.top_n))
         project=input('新项目英文名称（例如NMR_Molecule_20261013）：').strip()
         if not re.fullmatch(r'[A-Za-z0-9_-]+',project):raise ValueError('项目名称只能含英文、数字、下划线或短横线')
         folder=Path(input('已上传PDB所在目录：').strip()).expanduser();files=sorted(folder.glob('*.pdb'))
         if not files:raise ValueError('目录中没有.pdb文件')
         print('将只使用以下结构：\n'+'\n'.join(str(x) for x in files))
         if input('确认这些是全部候选？输入yes：').strip().lower()!='yes':raise ValueError('未确认，不建立项目')
-        charge=int(input('总电荷[默认0]：') or 0);multi=int(input('自旋多重度[默认1]：') or 1);cap=int(input('DFT最多构象数[默认6，0全部]：') or 6)
-        choice=input('聚类档位：1粗分类（默认）；2细分类：').strip() or '1'
+        charge=int(input('总电荷[默认0]：') or 0);multi=int(input('自旋多重度[默认1]：') or 1)
+        base=input('基础模块：0现有核磁（默认）；1单独构象：').strip() or '0'
+        if base not in ('0','1'):raise ValueError('基础模块应为0或1')
+        weight='free_energy'
+        if base=='1':
+            value=input('构象布居：1快速GFN2电子能；2精修自由能（默认）：').strip() or '2'
+            if value not in ('1','2'):raise ValueError('布居选项应为1或2')
+            weight={'1':'gfn2_energy','2':'free_energy'}[value]
+        cap=int(input('DFT最多构象数[默认6，0全部；快速档不使用]：') or 6)
+        top_n=int(input('导出前几个构象坐标与比例[默认6]：') or 6)
+        coupling=ecd=False
+        if weight=='free_energy':
+            def yes_no(prompt):
+                value=input(prompt).strip().lower() or 'n'
+                if value not in ('y','n'):raise ValueError('附加模块选项应为y或n')
+                return value=='y'
+            coupling=yes_no('增加2耦合常数/dJ-DP4模块？y/n[默认n]：')
+            ecd=yes_no('增加3圆二色谱ECD模块？y/n[默认n]：')
+        choice=input('聚类档位：1粗分类（旧标准，默认）；2细分类：').strip() or '1'
         if choice not in ('1','2'):raise ValueError('聚类选项应为1或2')
-        nmr=input('NMR方案：1 IEFPCM+G09兼容（默认）；2 PCM+G16；3 SMD+G16探索：').strip() or '1'
+        nmr=input('NMR方案：1旧PCM+G09兼容（默认）；2 PCM+G16；3 SMD+G16探索：').strip() or '1'
         if nmr not in ('1','2','3'):raise ValueError('NMR选项应为1、2或3')
-        prepare(Path(load_site()['projects_root'])/project,files,charge,multi,cap,{'1':'legacy_pcm_g09','2':'pcm_g16','3':'smd_g16'}[nmr],{'1':'coarse','2':'fine'}[choice])
+        modules=dict(mo.DEFAULT_MODULES,base={'0':'nmr','1':'conformers'}[base],conformer_weight=weight,coupling=coupling,ecd=ecd)
+        prepare(Path(load_site()['projects_root'])/project,files,charge,multi,cap,{'1':'legacy_pcm_g09','2':'pcm_g16','3':'smd_g16'}[nmr],{'1':'coarse','2':'fine'}[choice],modules,dict(mo.DEFAULT_ANALYSIS,top_n=top_n))
     else:
         if not a.project:p.error('需要项目目录')
         project=Path(a.project).resolve()

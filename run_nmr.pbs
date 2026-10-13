@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#PBS -N AutoConfoNMR
+#PBS -N ConfoNMR
 #PBS -j oe
 #PBS -S /bin/bash
 # Queue/node/walltime arguments come from config/cluster.json via submit.sh.
@@ -16,7 +16,7 @@ RUN_LOG="$PROJECT_DIR/运行日志/run_$(date +%Y%m%d_%H%M%S)_${PBS_JOBID}.log"
 readonly RUN_LOG
 exec > >(tee -a "$RUN_LOG") 2>&1
 export PYTHONUNBUFFERED=1 NMR_STREAM_LOG=1 NMR_PROJECT_DIR="$PROJECT_DIR"
-printf 'Auto ConfoNMR 项目：%s\n作业：%s\n节点：%s\n完整输出：%s\n' "$PROJECT_DIR" "$PBS_JOBID" "$(hostname)" "$RUN_LOG"
+printf 'ConfoNMR项目：%s\n作业：%s\n节点：%s\n完整输出：%s\n' "$PROJECT_DIR" "$PBS_JOBID" "$(hostname)" "$RUN_LOG"
 # Generated inside this project from the explicitly configured site settings.
 # shellcheck disable=SC1091
 source "$WORKFLOW_HOME/cluster_runtime.sh"

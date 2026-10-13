@@ -1,98 +1,101 @@
 # Auto ConfoNMR
 
-自动化构象加权核磁计算与候选结构评估 · **V1.2**
+自动化构象加权核磁计算与候选结构评估 · **V2.1**
 
-Auto ConfoNMR 从三维候选结构出发，串联构象搜索、几何优化、频率分析、单点能和 NMR 屏蔽计算，导出构象加权结果，并根据实验归属进行 DP4+/STS 比较。适用于 Linux 集群，目前提供 PBS 单节点提交方式。
+Auto ConfoNMR 从三维候选结构出发，完成构象搜索、几何优化、频率分析、单点能和构象加权 NMR 计算，并根据实验归属进行 DP4+/STS 比较。V2.1 保留 V1.2 的多样品比较和四个日常脚本，增加单独构象搜索、H–H 耦合常数及 ECD 模块。适用于 Linux 集群，目前提供 PBS 单节点提交方式。
 
-日常使用下载 [V1.2 运行包](https://github.com/Zoanthamine/Auto-ConfoNMR/releases/download/V1.2/Auto_ConfoNMR_V1.2_runtime.zip)，解压后即可配置。也可以直接克隆本仓库：脚本、参数、工作簿和 Linux x86-64 辅助程序均按目录存放，可在线浏览。`tests/` 和参数提取工具供开发维护使用，不参与日常计算，运行包不包含它们。
+日常使用下载 [V2.1 运行包](https://github.com/Zoanthamine/Auto-ConfoNMR/releases/download/V2.1/Auto_ConfoNMR_V2.1_runtime.zip)，解压后按后文配置。也可以克隆本仓库。两种方式都包含辅助程序、配套参数和 DP4+/STS 工作簿；Gaussian、ORCA 等完整软件环境需另行准备。
 
-日常操作使用一个建项目脚本和四个项目内脚本。计算条件写在带中文注释的 `project.ini` 中；软件路径、module 和队列设置集中在 `config/cluster.json` 中。
-
-随附的 CREST、xTB、Shermo、Multiwfn、Molclus/Sobtop 工具及其配套文件见 [辅助资源目录](confonmr-resources/)。Gaussian、ORCA 等完整软件环境仍需另行配置。首次安装请先完成后文的[迁移配置](#迁移配置)。
-
-发布页提供以下文件，按用途选择即可：
-
-|下载文件|适合谁|包含什么|
+|下载文件|用途|内容|
 |---|---|---|
-|`Auto_ConfoNMR_V1.2_runtime.zip`|日常计算|运行脚本、配置示例、计算模板、辅助程序与工作簿；不含开发测试|
-|`Auto_ConfoNMR_V1.2_source.zip`|查看或维护源码|运行包内容，以及 `tests/` 和参数提取工具|
-|`Auto_ConfoNMR_V1.2_linux_resources.tar.gz`|单独配置辅助资源|仅辅助程序、参数、工作簿、许可和对应源码；已下载前两个包时无需再下载|
-|`SHA256SUMS.txt`|核对下载完整性|上述三个压缩包的 SHA256|
+|`Auto_ConfoNMR_V2.1_runtime.zip`|日常计算|运行脚本、计算模板、说明、辅助程序和工作簿|
+|`Auto_ConfoNMR_V2.1_source.zip`|查看或维护源码|运行包内容，以及 `tests/` 和参数提取工具|
+|`Auto_ConfoNMR_V2.1_linux_resources.tar.gz`|单独配置辅助资源|辅助程序、参数、工作簿、许可及对应源码；前两个包已包含，无需重复下载|
+|`SHA256SUMS.txt`|检查下载文件|三个压缩包的 SHA256|
 
-程序目录中主要使用以下文件：
+软件路径、module 和队列写在 `config/cluster.json`，每次计算的条件写在带中文注释的 `project.ini`。辅助资源沿用 V1.2 的版本，目录与来源见 [confonmr-resources/](confonmr-resources/)。
 
-|入口或目录|用途|
-|---|---|
-|`00_new_project.sh`|建立计算项目|
-|`config/cluster.example.json`|集群配置示例；复制为 `cluster.json` 后填写路径、module 和队列|
-|`resources/`|计算模板与项目配置模板|
-|[`confonmr-resources/`](confonmr-resources/)|辅助程序、参数、工作簿及来源说明|
-|`experiment.example.csv`、`assignments.example.csv`|实验数据与原子归属填写示例|
-|`tests/`|开发维护测试|
+## 选择计算内容
+
+|建项选项|计算内容|主要结果|
+|---|---|---|
+|基础 `0`：NMR，默认|搜索、DFT 精修、自由能布居、三套屏蔽|加权屏蔽、构象坐标与比例；填写实验表后生成 DP4+/STS 比较|
+|基础 `1`，布居 `1`：快速构象|完整搜索、GFN2 电子能布居|默认前 6 个构象坐标、比例及覆盖|
+|基础 `1`，布居 `2`：严谨构象|完整搜索、DFT 优化/频率、ORCA/Shermo 自由能布居|默认前 6 个构象坐标、自由能比例及覆盖|
+|附加 J|对所选构象另算 FC 耦合和 GIAO 屏蔽|H–H 矩阵、逐构象 J、权重和 dJ 工作簿|
+|附加 ECD|对所选构象运行 TDDFT|跃迁、加权曲线、PNG/SVG；可叠加实验曲线|
+
+基础 0/1 二选一。J 和 ECD 可以加到 NMR 或严谨构象模式，快速档不支持。严谨构象加 J 时，只运行 J 所需的一套屏蔽，不额外运行三套 NMR。
+
+快速与严谨档的退火搜索时长相同；快速档省去后续 DFT、频率、ORCA 和 Shermo。导出前几个构象由 `top_n` 控制，送入 DFT 的数量由 `max_conformers` 控制，两个设置分别生效。
 
 ## 日常使用
 
 ### 1. 准备结构并建立项目
 
-每个候选准备一个完整的三维 PDB，包含氢原子、元素信息及正确的 `CONECT` 键连。检查质子化状态、电荷和立体构型，一个文件只放一个模型。文件名使用英文、数字或下划线，例如 `candidate_A.pdb`。将本次所有候选放进同一输入目录，避免混入其他结构。
+每个候选准备一个完整三维 PDB，包含氢、元素列和正确的 `CONECT` 键连，一个文件只放一个模型。检查质子化状态、电荷及立体构型。文件名使用英文、数字、下划线或短横线，避免只有大小写不同的名称。本次所有候选放进同一输入目录。
 
-上传到集群后，在程序目录运行：
+在程序目录运行：
 
 ```bash
 cd /path/to/Auto_ConfoNMR
 bash 00_new_project.sh
 ```
 
-按提示填写：
+|提示|输入或选择|
+|---|---|
+|新项目名称|例如 `NMR_demo`，目录不能已经存在|
+|PDB 所在目录|集群上的完整路径，例如 `/home/user/inputs/demo`|
+|确认候选|核对列表后输入 `yes`|
+|总电荷 / 多重度|按实际电子态填写，中性闭壳层通常为 `0` / `1`；所有候选共用|
+|基础模块|`0` NMR；`1` 单独构象|
+|构象布居，基础 1 时询问|`1` 快速；`2` 严谨，默认 2|
+|DFT 最多构象数|默认 `6`，`0` 为全部；快速档不使用|
+|导出构象数量|默认 `6`，可填其他正整数|
+|增加 J / ECD，精修模式时询问|分别回答 `y` 或 `n`，默认 `n`|
+|聚类档位|`1` 粗分类；`2` 细分类，默认 1|
+|NMR 方案|`1` IEFPCM/G09 兼容；`2` IEFPCM/G16；`3` SMD/G16，默认 1|
 
-|提示|输入或选择|说明|
-|---|---|---|
-|新项目名称|例如 `NMR_demo`|英文、数字、下划线或短横线；目录不能已经存在|
-|PDB 所在目录|例如 `/home/user/inputs/demo`|填写集群上的路径|
-|确认候选|核对文件列表后输入 `yes`|列出的每个 PDB 都会参与计算|
-|总电荷|中性分子填 `0`|填写分子总电荷|
-|自旋多重度|闭壳层通常为 `1`|按实际电子态确认|
-|DFT 最多构象数|默认 `6`；`0` 为全部|按 GFN2 能量选取，是计算预算，不代表构象搜索已收敛|
-|聚类档位|`1` 粗分类；`2` 细分类|默认 `1`；具体阈值见后文|
-|NMR 方案|`1` IEFPCM/G09 兼容；`2` IEFPCM/G16；`3` SMD/G16|默认 `1`；方案 2、3 用于独立对照项目|
-
-程序在配置的 `projects_root` 下创建独立项目，显示其实际路径。此时只准备文件，尚未提交计算。
+最后一项只影响 NMR 屏蔽，单独构象模式保留该提示但不运行 NMR。J/ECD 使用各自的输入模板。程序在 `projects_root` 下创建独立项目并显示路径，此时尚未提交计算。
 
 ### 2. 核对参数并提交
 
-进入新项目，用文本编辑器打开 `project.ini`，核对电荷、多重度、构象预算、核数和内存。文件保存为 UTF-8，Shell 脚本使用 LF 换行。
+进入新项目，编辑 `project.ini`，核对计算内容、电荷、多重度、预算、核数及内存。保存为 UTF-8，Shell 脚本使用 LF 换行。
 
-|文件|提交前检查什么|
+|配置区域|可修改的内容|
 |---|---|
-|`inputs/`|候选结构齐全，内容正确|
-|`project.ini`|计算条件、资源用量、后处理文件名|
-|`计算方案.md`|方法、聚类阈值及与校准条件的差异|
-|`参数预览/`|三组 NMR 的实际关键词；其中坐标占位符仅供预览|
+|`[方案]`|粗/细聚类、NMR 溶剂与版本方案|
+|`[计算]`|电荷、多重度、DFT 预算、性质覆盖、CPU/内存、Shermo 温度/压力|
+|`[模块]`|基础模式、J/ECD 开关、ECD 方法、态数及溶剂|
+|`[对比]`|位移实验表、原子归属、NMR 探索比较开关|
+|`[模块后处理]`|导出数量、J 实验表及探索开关、ECD 展宽与显示设置|
 
 ```bash
 cd /path/to/projects/NMR_demo
 bash 01_submit.sh
 ```
 
-看到 `Submitted 作业号` 后，检查 `提交记录.json`。提交脚本会检查配置、软件、输入和活动作业；失败时先查看 `运行日志/submit_*.log`。
+看到 `Submitted 作业号` 后检查 `提交记录.json`。01 先查询活动作业，再同步配置、预检和提交。失败时查看 `运行日志/submit_*.log`，已有作业号时先核实队列再操作。
 
-默认申请 16 核，Gaussian 总内存 60 GB，ORCA 每进程内存 3000 MB，MD 使用 4 线程。请按节点限制调整；ORCA 的每进程内存乘核数后还应留出系统余量。运行后计算条件与输入会被记录，改变候选结构或科学条件应另建项目。
+默认 16 核、Gaussian 总内存 60 GB、ORCA 每进程 3000 MB、MD 4 线程。按节点限制调整，ORCA 每进程内存乘核数后需留出系统余量。`计算方案.md`、`模块选择.json` 和 `参数预览/` 在建项及提交同步时生成，实际计算输入保存在过程目录。
 
-### 3. 查看进度
+项目提交后保留计算条件和输入。改变结构、计算模块或科学条件时另建项目；实验数据和导出数量可在计算结束后修改。
+
+### 3. 查看进度与中间文件
 
 ```bash
 bash 02_status.sh
 ```
 
-02 直接读取已完成的阶段回执及软件启动/结束记录，不必等待候选全部算完。它显示 GFN2 构象数、DFT 输入数、优化/正频率/ORCA 完成数，以及 NMR01/02/03 分别完成的任务数、当前构象、阶段和独立日志更新时间。
+02 显示 GFN2 构象数、DFT 输入数、优化/正频率/ORCA 完成数，以及所选 NMR、J、ECD 任务的进度、当前构象和独立日志更新时间。正在计算的单点尚不计为完成；覆盖率和目标总数在汇总前显示“待最终汇总”。
 
-NMR 的“任务数”与“构象数”分别显示：一个构象跑完三套方法是 3 个任务、1 个完整 NMR 构象。覆盖率和性质计算目标总数在最终汇总前显示“待最终汇总”，不把空白理解成未计算。频率剔除不会计入正频率数，多次优化尝试不会重复算成多个构象。
+`计算总览.html`、`实时进度.html` 是最近一次读取的快照，再运行 02 后刷新页面。总日志 `运行日志/run_*.log` 显示阶段、搜索、聚类和错误位置，Gaussian/ORCA 的完整输出在 `过程文件/` 下各自的日志中。判断作业是否仍在运行时，同时查看队列。
 
-02 刷新 `计算总览.html`、`实时进度.html` 和文件索引，不提交计算。HTML 是最近一次读取的快照，再运行 02 后刷新页面；判断是否还在运行应同时看队列。总日志 `运行日志/run_*.log` 显示阶段进度、搜索和聚类输出；Gaussian/ORCA 的完整输出保存在 `过程文件/` 下的独立日志中。
+### 4. 填写位移实验表与归属
 
-### 4. 填写实验数据与原子归属
+仅导出构象、计算 J 矩阵或画计算 ECD 时，不需要填写 NMR 实验表。
 
-可以在计算期间准备实验表。每个实验样品各准备一张表。复制项目中的 `experiment.template.csv` 为 `experiment_A.csv`，再用 Excel、LibreOffice 或文本编辑器填写，每个信号一行。下面是格式示例，数值与原子号仅作演示，使用时应全部替换：
+需要 DP4+/STS 时，每个实验样品各准备 `experiment_A.csv` 和 `assignments_A.csv`，与 `03_compare.sh` 放在同一目录。可以从项目生成的 `.template.csv` 复制，以下数值仅作格式示例：
 
 ```csv
 signal,nucleus,ppm
@@ -104,7 +107,7 @@ H2,H,2.4
 H3,H,7.1
 ```
 
-复制 `assignments.template.csv` 为 `assignments_A.csv`，为**每个候选的全部实验信号**填写归属。候选有几个，就重复填写几组；每组的 `signal` 必须与实验表完全一致。下面只展示 `candidate_A` 一组，另一个候选需按其自己的原子编号填写：
+归属表为每个候选填写完整的一组信号。下面展示一组，另一个候选按其自己的计算原子号填写：
 
 ```csv
 candidate,signal,atoms,hybridization,carbon_type,heavy_atom
@@ -116,295 +119,159 @@ candidate_A,H2,7,sp3,,
 candidate_A,H3,8,sp2,,
 ```
 
-`candidate` 必须与项目中的候选 ID 一致。`atoms` 使用计算原子号，应通过 `过程文件/<候选>/sampling/atom_map.json` 的 `input_serial` 和 `calculation_atom` 核对到原 PDB。PDB 序号不一定等于计算原子号，也不一定等于文件行号。
+`candidate` 与项目 ID 一致，`signal` 与实验表一致。`atoms` 使用从 1 开始的计算原子号，通过 `原子编号对照.csv` 或 `sampling/atom_map.json` 对照到原 PDB。等价原子用分号分隔，非等价氢分别填写，不按位移大小排序配对。参与拟合的每种核至少三条信号，位移不能全部相同。
 
-等价原子用分号分隔，例如甲基三个氢写为 `4;5;6`，作为一个实验信号参与比较。不能复制成三条独立证据，也不能按计算位移大小排序配对。每种参与拟合的核至少需要三条非退化信号。
+DP4+ 的 `hybridization` 填 `sp2` 或 `sp3`，氢按所连原子环境判断。STS 的碳分类见下表；无重原子修正时 `heavy_atom` 填 `None`。
 
-DP4+ 使用 `hybridization` 的 `sp2`/`sp3` 分类；氢按其所连原子的环境判断。STS 使用碳的 `carbon_type`，合法名称为：
-
-|类别|`carbon_type` 原样填写|
+|类别|`carbon_type`|
 |---|---|
 |饱和碳|`sp3-CH3`、`sp3-CH2/CH/C`|
 |不饱和碳|`sp2-CH2`、`sp2-CH`、`sp2-C`|
 |羰基等|`C=O`、`X-C=O`、`COOH`|
 |炔碳|`sp-CH`、`sp-C`|
 
-无对应重原子修正时 `heavy_atom` 填 `None`。`C-S`、`C-Cl`、`C-Br` 支持 `sp3-CH3`、`sp3-CH2/CH/C`、`sp2-CH2`、`sp2-CH`、`sp2-C`、`X-C=O`；`C-OSO2R` 支持前两类饱和碳。超出参数表的组合需要另行评估。工作簿导出要求同一信号在不同候选中的分类兼容，不能为通过检查而改变真实分类。
+支持的重原子组合及完整填表规则见 [详细 NMR 手册](docs/USER_GUIDE.md)。分类应依据真实结构，表头和类别名称需原样填写。
 
-#### 多个样品怎样提交
-
-样品数量与候选数量是两回事。一个实验样品可以与多个候选比较；多个分离产物则各填一张实验表，分别对同一组候选进行评估。程序不会假设各样品必须对应不同候选，也不会强制一一分配。
-
-将这些文件放在项目根目录，与 `03_compare.sh` 同级：
-
-```text
-experiment_A.csv       assignments_A.csv
-experiment_B.csv       assignments_B.csv
-experiment_product3.csv assignments_product3.csv
-experiment_product4.csv assignments_product4.csv
-```
-
-运行 03 时，程序读取全部 `experiment_*.csv`。`A`、`B` 或 `product3` 就是结果中的样品名，使用英文、数字、下划线或短横线。样品可以有一份、两份或更多份，无需为每个样品修改脚本或增加配置项。
-
-归属表按以下顺序选取：`experiment_A.csv` 优先使用 `assignments_A.csv`；该文件不存在时，使用共用的 `assignments.csv`。只有各样品使用相同信号编号和相同归属时才适合共用；信号数、顺序对应关系或归属不同，应分别填写。实验表的行顺序可以不同，程序按 `signal` 对应，不按行号或位移大小配对。
-
-单样品也兼容 `experiment.csv`，其结果名为 `single`，优先使用 `assignments_single.csv`，否则使用共用表。不要同时保留同一数据的 `experiment.csv` 和 `experiment_A.csv`，否则会被当作两个样品；`experiment_single.csv` 与 `experiment.csv` 同时存在会因重名停止。模板文件 `experiment.template.csv` 不参与比较。
-
-#### 手动填表时检查什么
-
-|字段或文件|填写规则|
-|---|---|
-|实验表表头|保留 `signal,nucleus,ppm`；不加标题、合并单元格、备注列或空白数据行|
-|`signal`|同一张实验表内唯一，例如 `C1`、`H2a`；名称只是信号标签，不会自动解释成原子号|
-|`nucleus`|只填 `C` 或 `H`，不写 `13C`、`1H` 或中文|
-|`ppm`|填单个数值，使用小数点；不填 `ppm` 单位、区间、多重峰说明或 `NaN`|
-|`candidate`|使用 `job.json` / `inputs/` 中的候选 ID，区分大小写；每个候选都应覆盖这张实验表的全部信号|
-|`atoms`|填计算原子号，从 1 开始，包含所有元素的统一编号；等价原子用分号，不使用逗号或区间|
-|分类|按结构填写 `hybridization`、碳的 `carbon_type` 和 `heavy_atom`，保留上表规定的英文名称|
-|保存格式|保存为 CSV UTF-8（逗号分隔），不要将 `.xlsx` 改后缀冒充 CSV；修改后重新打开检查|
-
-对照编号时，先在 `过程文件/<候选>/sampling/atom_map.json` 找到原 PDB 的 `input_serial`，读取同一条记录的 `calculation_atom`，再将后者填入 `atoms`。04 还会整理出 `原子编号对照.csv`，可直接用电子表格查看。不同候选的编号必须分别核对，不能假定同一信号在所有结构里编号相同；建议同时在分子查看器中显示 PDB 原子序号核对。
-
-`atoms=4;5;6` 表示三个原子被人工认定为一个等价信号，程序取它们的平均屏蔽。脚本能检查编号、元素和重复使用，不能判断化学等价性。非等价氢即使位移接近，也不能随意合并；未确定归属时不能按计算结果排序填入。
-
-有意排除溶剂峰、杂质峰、无法可靠归属的信号时，实验表与归属表应同时排除，并在原始实验记录中写明理由。不要用零位移或空白行占位。C-only 数据可以用于两组 DP4+ 与 STS；如果加入 H，H 也至少需要三条非退化信号。STS 仅使用 C 数据。所有候选必须比较同一张表的同一信号集合。
-
-计算中的部分等价碳或氢可能只产生一个实验信号，这是允许的；请填写一个等价原子组。未纳入比较的 C/H 原子会提示复核，不会自动补峰。上游 STS 工作簿最多支持 12 个候选、91 条碳信号，DP4+ 工作簿最多支持 128 个候选、300 条信号；这些限制针对每次比较的候选与信号，实验样品文件数量不受它们限制。
-
-如需先检查表格、不做统计比较：
+多个样品继续增加 `experiment_B.csv`、`experiment_product3.csv` 等，程序逐个比较。优先采用同名 `assignments_<样品>.csv`，缺少时采用共用 `assignments.csv`。单样品也支持 `experiment.csv`。同一份数据只保留一个正式文件名，`.template.csv` 不参与比较。
 
 ```bash
 bash 03_compare.sh --check-only
-```
-
-它检查每张实验表及其归属表，并显示实际使用的文件。结构准备完成、有原子映射后即可检查；没有映射时会提示等待。检查记录保存在 `运行日志/data_check_*.json`。空表、缺少归属、重复信号/原子、核种不符、非法分类等会停止本批比较；超出常见范围的位移、等价组和未纳入比较的原子列入人工复核提示。**格式检查通过不等于化学归属正确。**
-
-### 5. 验收、比较与保存
-
-比较前检查：
-
-1. 全部候选的 `state.json` 为 `complete`，PBS 返回码为 0，本批次无活动作业。
-2. Gaussian 和 ORCA 正常结束，频率模式完整且严格为正；失败或被拒绝的构象有可追溯原因。
-3. 频率、单点能和 Shermo 文件按构象 ID 对应，构象权重与 NMR 权重各自归一化。
-4. MD 无未解释的 LINCS/NaN，核对 Sobtop 缺失参数、键连及搜索前后的立体构型。
-5. 实际计算关键词、输入与程序哈希一致，实验归属和分类已独立审核。
-
-随后运行：
-
-```bash
 bash 03_compare.sh
 bash 04_collect.sh
 ```
 
-03 先检查全部实验表，通过后逐个处理。它读取现有屏蔽结果，不重跑量化计算；至少需要两个候选才能进行 DP4+ 相对比较。单候选仍可完成计算、加权导出和文件整理。
+`--check-only` 检查位移表的格式、元素、原子号和分类，保存检查记录，不计算概率或改写计算配置。需要项目已经产生原子映射或构象记录。正式 03 等全部候选完成、队列无活动作业后运行，逐样品保存输入快照、结果和日志；04 收集所有已完成样品及历史批次。
 
-每次比较保存为 `results/comparison_<时间戳>/<样品名>/`。每个样品独立生成：
+每样品查看 `comparison_results.json`、三份工作簿、`信号误差.csv` 和 `数据与结果复核.md`。Excel 工作簿打开后重算公式；信号误差是当前数据拟合后的残差。DP4+ 至少两个候选，概率反映所提供候选间的比较。
 
-|文件|内容|
+多样品文件匹配和结果目录见 [MULTISAMPLE.md](docs/MULTISAMPLE.md)。
+
+### 5. 使用 J 模块的结果
+
+启用 J 后，脚本另算气相 B3LYP/6-31G(d,p) 的 FC-only 耦合和 GIAO 屏蔽，带 G09Defaults。每个候选输出原始 H–H 矩阵、逐构象 J、权重及 `dJ_DP4_tables.xlsx`。没有实验数据时也可查看这些结果。
+
+|工作表|内容|
 |---|---|
-|`dp4plus_method01_exploratory.xlsx`|01 B3LYP 屏蔽对应的 DP4+ 工作簿|
-|`dp4plus_method02_exploratory.xlsx`|02 mPW1PW91 屏蔽对应的 DP4+ 工作簿|
-|`sts_method03_exploratory.xlsx`|03 wB97XD 屏蔽对应的 STS 工作簿，仅碳|
-|`comparison_results.json`|脚本计算的概率、误差、条件差异与输入哈希|
-|`method01/02/03_comparison_input.csv`|逐信号实验值及各候选的加权屏蔽，用于核对对应关系|
-|`信号误差.csv`|各候选对当前实验表拟合后的逐信号残差；仅用于排查，不是外部预测误差|
-|`数据与结果复核.md`|人工检查清单、自动提示及残差较大的信号|
+|`J_<候选>`|加权原始 FC J，Hz，保留正负号|
+|`经验标度_<候选>`|整页非对角元 `(J_raw+0.1405)/0.9509`；该校准用于 ³JHH，²J和长程项需自行区分|
+|`Bally参考_<候选>`|原始值独立乘 `0.9155`；系数来源为 H-only 去收缩/紧 s 基组协议，普通基组上仅供参考|
 
-三个样品会得到九份工作簿；增加样品只需要增加 CSV。输入快照、归属检查记录和实际比较配置保存在同批 `_inputs_<样品名>/`，与结果一起留档。重新运行会创建新批次，不覆盖旧结果。
+两张参考页分别从原始矩阵生成。当前计算使用普通 6-31G(d,p)，没有加入 `+1s`。工作簿页首写明公式和适用条件，原始 CSV 保持原始数值。
 
-**比较后请再检查一次数据。** 打开各样品的 `数据与结果复核.md`，对照原始谱图检查实验值、原子号、等价组与分类，再查看异常信号及两组 DP4+/STS 的结果是否冲突。概率很高但归属有误时，结果仍可能明显错误；不要为了得到预期排序而删峰、改分类或调参数。Excel 工作簿需打开并重新计算公式，并与 JSON 核对；JSON 结果不依赖 Excel 缓存。
+需要 dJ-DP4 探索比较时，准备一组 C/H 位移表和两张 J 表：
 
-最高概率应结合 MAE/RMSE、异常信号、候选集合和其他结构证据解释，不能当作实验样品的异构体浓度，也不能排除候选集合以外的结构。多个实验样品得到同一候选排名第一时，不代表程序发生了强制配对，应回看数据和候选是否充分。
+|文件，默认名|列名|
+|---|---|
+|`experiment.csv`|`signal,nucleus,ppm`|
+|`assignments.csv`|与 NMR 归属表相同|
+|`experiment_j.csv`|`signal,j_hz,mode,bond_count`|
+|`assignments_j.csv`|`candidate,signal,atoms_a,atoms_b`|
 
-04 将所有批次已完成样品的结果与输入快照复制到 `最终结果/实验比较/<批次>/<样品>/`，同时更新 `实验比较索引.csv` 和 `各样品最新结果.csv`。都是实际文件。某样品失败时，已完成结果保留，`batch.json` 记录本批状态；排查后重新运行 03，旧失败现场仍保留。最新完整批次见 `results/latest_batch.json`；“各样品最新结果”可能来自不同批次，索引中标明批次状态，不要误当作同一次完整比较。
+J 的 `mode` 填 `signed` 或 `magnitude`，`bond_count` 填 `3`，两端原子组用分号分隔。程序根据采样 MOL2 核对三键路径，先平均带符号的原始 J，再按实验符号约定比较。直接 XYZ 输入目前支持矩阵导出，不支持 dJ 的键连审核。
 
-04 同时更新构型、构象分布和文件索引。备份整个项目目录，包括 `过程文件/`、`results/` 和原始实验记录；04 不代替备份。
+J 使用 `[对比] experiment/assignments` 指定的一组 C/H 表，默认是 `experiment.csv/assignments.csv`；使用多样品文件时，在这里明确指定其中一组。J/ECD 不随 NMR 样品自动循环。
 
-## 文件组织
+默认 `coupling_allow_exploratory=false`，只输出计算表。确认几何和布居与原文 MMFF 校准的差异后，可改为 `true` 再运行 03。相对 dJ 概率至少需要两个候选，工作簿手动改值不会更新脚本统计。
 
-```text
-NMR_demo/
-├── 01_submit.sh … 04_collect.sh
-├── project.ini                 # 日常编辑的配置
-├── job.json                    # 程序生成的实际配置
-├── inputs/                     # 原始候选结构
-├── workflow/                   # 本项目固定的程序与资源
-├── 参数预览/、计算方案.md
-├── 运行日志/                   # 提交、总进度和比较日志
-├── 过程文件/
-│   └── candidate_A/
-│       ├── sampling/           # RESP、拓扑、MD、GFN 搜索与原子映射
-│       ├── conformers/c0001/   # 优化、频率、单点与三组 NMR
-│       └── shermo/             # 热校正及构象权重
-├── 最终结果/                   # 汇总与最新结果位置
-├── results/                    # 每次实验比较的独立结果
-├── 构象分布与混合比例.csv
-├── 文件索引.csv、计算总览.html
-└── 提交记录.json、程序版本SHA256.json
+### 6. 使用 ECD 模块的结果
+
+默认三套 TDDFT：01 PBE0/TZVP、02 CAM-B3LYP/6-311G*、03 B3LYP/6-311G*，SMD 甲醇、30 个激发态。ECD 溶剂和态数在 `[模块]` 中修改，与 NMR 设置分开。
+
+每候选、每方法输出 `transitions.csv`、`curves.csv`、`ecd_raw.png/.svg`，另外生成同方法的候选叠加图。默认速度规范、FWHM 0.5 eV，能量缩放 1、波长平移 0；修改显示设置时保留原始曲线。30 态是否覆盖目标波段需检查跃迁表。
+
+实验曲线可选，`experiment_ecd.csv` 两列为 `wavelength_nm,delta_epsilon`，单位分别是 nm 和 L mol⁻¹ cm⁻¹。仪器若给出 mdeg，需用实际浓度和光程换算后填写。没有实验表也会生成计算图。
+
+J/ECD 的完整列名、原理和设置见 [MODULES.md](docs/MODULES.md)。
+
+### 7. 保存和下载
+
+```bash
+bash 04_collect.sh
 ```
 
-过程文件直接写入项目目录。Gaussian 和 ORCA 文件名包含软件、阶段、候选和构象，例如 `Gau_opt_candidate_A_C0001_A01.log`、`Gau_nmr02_candidate_A_C0001.log`、`Orca_sp_candidate_A_C0001.gbw`。优化回退步骤用 `A01/A02/A03` 区分，检查点与输入使用相同前缀。
+|位置|内容|
+|---|---|
+|`过程文件/<候选>/sampling/`|电荷、拓扑、MD 轨迹、GFN、原子映射和质量警告|
+|`过程文件/<候选>/conformers/cXXXX/`|每个构象的优化、频率、ORCA和所选性质输入输出|
+|`过程文件/<候选>/shermo/`|自由能及布居记录|
+|`最终结果/附加模块/conformers/`|前 N 坐标、全集比例和导出子集比例|
+|`最终结果/附加模块/coupling/`|J 矩阵、权重、工作簿和比较记录|
+|`最终结果/附加模块/ecd/`|跃迁、曲线及图片|
+|`results/comparison_<时间>/`|各样品比较结果、输入快照和批次记录|
+|`最终结果/实验比较/`|04 集中的已完成样品及历史结果|
 
-`weighted_shielding.csv` 保存加权屏蔽，`per_conformer_shielding.csv` 保存各构象贡献；构象权重与实际采用的 NMR 混合比例可在构象分布表中查看。截取部分构象后，混合比例会在保留集合内重新归一化。
+实际过程文件直接保存在项目内。文件名包含软件、阶段、候选和构象，例如 `Gau_opt_001RR_C0001_A01.log`、`Orca_sp_001RR_C0001.log`。Gaussian 检查点、ORCA 波函数及大轨迹也保留在过程目录。长期保存建议备份整个项目，单独下载最终结果会遗漏这些文件。
 
-## 计算方法与自动化过程
+修改 `top_n` 后运行 03、04 可重新导出坐标和比例，无需重跑量化。计算或后处理失败时保留日志、回执和提交历史，先确认作业停止再诊断；不完整采样阶段需保留现场并在新项目重新开始。常见问题见 [简明 SOP](docs/QUICKSTART_V2.md)。
 
-### 从结构到加权核磁
+## 计算流程与参数
 
-流程依次完成：
+PDB → 两相 RESP 混合电荷 → Sobtop 拓扑 → 三套退火 MD → VMD 提取 → GFN1/GFN2 优化聚类。快速档到这里计算电子能布居；精修档继续 DFT 优化、去重、频率、ORCA 和 Shermo，再运行所选性质。
 
-1. **结构准备与电荷**：Open Babel 转换结构；Gaussian 在 B3LYP/6-31G 级别计算气相与水相静电势，Multiwfn 拟合电荷，按 `delta=0.5` 混合。这里采用两相电荷混合思路，电子结构条件不等同于发表的 RESP2 标准方案。
-2. **动力学搜索**：Sobtop 生成拓扑，GROMACS 执行三组固定种子的退火 MD，每组 200 ps，VMD 提取轨迹。当前实现按 md03、md02、md01 的顺序选择最后一组成功轨迹，不合并三组轨迹。
-3. **构象精修与筛选**：CREST/xTB 依次进行 GFN1、GFN2 精修，isostat 按能量和 RMSD 聚类，再按 GFN2 能量及 DFT 预算选取构象。这不是完整的 CREST iMTD-GC 搜索。
-4. **量化计算**：Gaussian 做几何优化及频率；ORCA 计算单点电子能；Shermo 组合频率热校正与单点能得到自由能及构象分布。优化主方案失败时有两个回退输入，保留每次尝试的输出。
-5. **NMR 与比较**：按累计权重选择构象，进行三组 GIAO 屏蔽计算；先平均等价原子，再按构象权重平均，最后用显式实验归属进行 DP4+/STS 评估。
-
-构象权重满足 Boltzmann 关系 `p_i ∝ exp[−(G_i−G_min)/(RT)]`，在已计算的有效集合内归一化。默认累计权重阈值为 0.99；它描述这个集合内的覆盖，不能说明已覆盖整个构象空间的 99%。构象较多或柔性较强时，需要检查预算和搜索收敛。
+三套 MD 各 200 ps，最高温度分别为 1000、1500、2000 K，并完整降温；从最后成功完整轨迹按 md03→md02→md01 的顺序选择。GFN 使用 CREST `-mdopt` 精修已有构象。电荷采用旧流程的两相 RESP 混合，气相/水 B3LYP/6-31G MK，delta=0.5。
 
 |步骤|默认条件|
 |---|---|
-|几何优化、频率|气相 B3LYP-D3BJ/6-31G(d)|
+|优化 / 频率|气相 B3LYP-D3BJ/6-31G(d)|
 |单点能|气相 ORCA wB97M-V/def2-TZVP，RIJCOSX、def2/J|
-|热力学|Shermo，298.15 K、1 atm，低频熵插值阈值 100 cm⁻¹，缩放因子 1|
-|01 屏蔽 / 比较|B3LYP/6-31G(d) / DP4+|
-|02 屏蔽 / 比较|mPW1PW91/6-311+G(d,p) / DP4+|
-|03 屏蔽 / 比较|wB97XD/6-31G(d) / STS，仅 ¹³C|
-|NMR 溶剂与默认值|IEFPCM 氯仿，GIAO，G09Defaults|
+|热力学|Shermo，298.15 K、1 atm，低频熵处理阈值 100 cm⁻¹，缩放因子 1|
+|NMR 01 / 比较|B3LYP/6-31G(d) / DP4+|
+|NMR 02 / 比较|mPW1PW91/6-311+G(d,p) / DP4+|
+|NMR 03 / 比较|wB97XD/6-31G(d) / STS，仅 ¹³C|
+|NMR 溶剂 / 默认值|IEFPCM 氯仿，GIAO，G09Defaults|
 
 |聚类档位|GFN1 Edis / Gdis|GFN2、DFT Edis / Gdis|isostat 温度|
 |---|---|---|---|
 |coarse 粗分类|0.5 / 0.5|0.3 / 0.2|300 K|
 |fine 细分类|0.2 / 0.2|0.2 / 0.1|350 K|
 
-Edis 单位为 kcal/mol，Gdis 为 Å。粗分类较容易把相近构象合并，保留的代表集合通常更紧凑；细分类采用较小阈值，通常保留更多构象差异。这里选择的是聚类标准，两档的默认动力学搜索时长相同。细分类不会自动提高 DFT 预算；如果仍只选前 6 个构象，更多聚类代表不一定能进入 DFT。
+Edis 单位 kcal/mol，Gdis 单位 Å，Nout/Eout 均为 100。粗分类通常保留较紧凑的代表集合；细分类保留更多相近构象的差别，两档搜索时长相同。细分类不会自动增加 DFT 预算，isostat 温度只用于其布居显示。
 
-两档的 Nout、Eout 均为 100；isostat 温度仅用于其分布显示，最终权重使用 Shermo 温度。累计权重阈值和最多构象数的作用不同：前者从已完成量化的集合中选取 NMR 构象，后者在 DFT 之前限制计算数量。
+自由能布居按 `p_i ∝ exp[−(G_i−G_min)/(RT)]` 在合格的已计算集合中归一，快速档将 G 换为 GFN2 电子能 E。默认累计 0.99 从精修集合选择性质构象，选中部分再归一后混合；前 N 坐标另按布居排序导出。这里的覆盖率只描述该集合，不是整个构象空间的覆盖。
 
-### DP4+/STS 的适用条件
+DP4+、STS 和 dJ 原文采用的几何及能量加权条件与本流程有差异，比较结果保留 `exploratory` 标记。PCM/SMD、G09/G16 默认值需要分别处理；G09Defaults 也不保证跨版本逐位相同。方法说明见 [THEORY.md](docs/THEORY.md) 和 [V2_INTERNALS.md](docs/V2_INTERNALS.md)。
 
-DP4+ 按核种及杂化类别使用固定误差分布，综合缩放与未缩放误差计算候选相对概率。STS 按碳环境分组使用训练参数，并对支持的重原子环境作修正。参数固定在 `calibration.json` 中，保留上游工作簿来源与哈希；不能根据期望结论重新调整参数。
-
-DP4+ 文献的几何与能量加权方案、STS 文献的溶剂中 B3LYP-D3BJ/TZVP 几何及 Gibbs 能，与本流程共同采用的气相几何和 ORCA/Shermo 权重不同。因此本版比较保留 `exploratory` 条件差异标记，不能视为完整复现原文校准体系。
-
-STS 文献使用 IEFPCM，Gaussian 09 或 Gaussian 16 的 G09Defaults 兼容设置。PCM 与 SMD、Gaussian 09 与 Gaussian 16 默认值均不可直接互换。默认 NMR 方案采用 IEFPCM/G09Defaults；另两种设置用于对照，不表示相同校准参数已经适用于这些设置。`G09Defaults` 也不保证跨版本结果逐位相同。
-
-Sobtop 的预置参数库可能无法覆盖某些原子类型组合。缺少 proper dihedral 参数时，相应扭转势能项可能置零；缺少 improper 参数时，可能采用通用替代项。这里的置零只涉及对应的力场项，其他键合与非键相互作用仍然存在；它影响早期构象采样，最终自由能和 NMR 屏蔽仍由后续量化计算获得。
-
-查看 `过程文件/<候选>/sampling/sobtop.log` 和 `topology_quality.json`，结合动力学是否稳定、键连和立体构型是否保持来判断。缺项提示本身不等于计算失败，也不足以证明最终结果有误；即使未见明显结构异常，也不能据此证明采样充分。对新体系应记录这些提示及检查结果，后续量化优化不能保证补回采样漏掉的构象。
-
-### 程序如何记录与续跑
-
-建项目时复制程序、模板和资源，生成固定快照与 SHA256 清单。提交后，各阶段通过状态文件和回执记录输入、输出及执行结果；符合原始身份和哈希的已完成阶段可以复用。活动作业检查与输出锁用于防止同项目重复运行。
-
-失败后保留输入、输出和提交记录，用 02 及调度器确认作业停止，再根据独立软件日志诊断。修复运行环境后可对同一计算条件续跑；输入或科学条件变化应新建项目。不完整采样阶段目前不支持自动原地续接，出现 `Incomplete sampling` 时应保留现场，在新项目中重新开始采样。遗留锁目录也不能在确认作业仍活动时删除。
-
-|程序|职责|
-|---|---|
-|`project_console.py`|交互建项目、INI 同步、提交、查询与比较入口|
-|`experiment_batch.py`|发现多样品实验表、检查归属、独立比较及汇总收集|
-|`cluster_config.py`|环境配置、辅助资源检查、Bash 环境生成与 PBS 参数|
-|`sampling.py`|电荷、拓扑、动力学与 GFN 构象筛选|
-|`nmrflow.py`|量化调用、解析、权重、状态、回执与锁|
-|`protocol_options.py`|方法分支、NMR 方案、聚类阈值和条件差异|
-|`postprocess.py`|显式映射、加权、统计比较与工作簿导出|
-|`project_views.py`|文件索引、HTML 总览与构象分布汇总|
-|`init_project.py`、`submit.sh`、`run_nmr.pbs`|初始化与调度内部入口，由日常脚本调用|
-|`extract_calibration.py`|维护者从上游表提取参数，非日常操作|
-|`tests/test_*.py`|解析、统计、身份、调度保护、文件输出与配置测试|
-
-输入模板位于 `resources/`：`03_tem1/2/3.gjf` 为优化主方案和两个回退，`04_tem.gjf` 为频率，`05_tem.inp` 为 ORCA 单点，`06_tem01/02/03_nmr.gjf` 对应三组屏蔽，`md01/02/03.mdp` 为动力学设置。修改这些模板需要方法审核和新项目验证。
+Sobtop 缺少扭转参数时可能将该项势垒置零，缺少 improper 时可能使用替代参数。这会影响早期采样的势能面，后续量化优化也未必能补回漏掉的构象。查看 `sobtop.log` 和 `topology_quality.json`，并检查 MD 稳定性、键连及立体构型。已验证体系出现过 10 类扭转缺项和 2 类 improper 替代提示。
 
 ## 迁移配置
 
-### 1. 准备外部环境
+### 1. 下载并准备环境
 
-下载源码：
+运行包和克隆仓库任选一种。克隆固定版本：
 
 ```bash
 git clone https://github.com/Zoanthamine/Auto-ConfoNMR.git Auto_ConfoNMR
 cd Auto_ConfoNMR
-git checkout V1.2
-```
-
-下载运行包与克隆仓库任选一种。两者均已包含 `confonmr-resources/` 中的实际程序、参数与工作簿，无需再找单独的资源包。运行包适合日常计算；仓库另外保留开发测试及维护工具。随附程序适用于 Linux x86-64，迁移到其他架构时需要自行安装兼容版本。
-
-目标节点需要访问以下环境：
-
-|软件或资源|用途|配置位置|
-|---|---|---|
-|Linux、Bash、PBS|运行与排队；使用 qsub/qstat|本版仅提供 PBS，Slurm/LSF 需另行适配提交器|
-|Python 及 numpy、openpyxl|执行脚本、读写数值和工作簿|`python`；依赖见 `requirements.txt`|
-|Gaussian、同安装的 formchk|静电势、优化、频率、NMR|`software.g16/formchk`、`gaussian_profile`|
-|ORCA、发行包要求的 OpenMPI|单点能|`software.orca/openmpi`，MPI 填安装根目录|
-|CREST、xTB（运行包已含）|GFN 精修|`software.crest`；资源包 `bin` 加入 `path_prepend`|
-|GROMACS|动力学|`software.gmx` 或对应 module|
-|VMD 完整安装|轨迹提取|`software.vmd`，填写实际执行文件|
-|Open Babel|结构格式转换|`software.obabel`|
-|Multiwfn 无图形版本及配置（运行包已含）|电荷拟合|`software.multiwfn`|
-|Shermo（运行包已含）|热校正与构象分布|`software.shermo`|
-|Molclus 辅助程序、Sobtop、力场数据（已含）|聚类、拓扑及格式转换|`resource_bundle`|
-|DP4+/STS 接口工作簿（已含）|可追溯工作簿导出|资源包内 `upstream/`|
-
-软件须合法取得，并与自动输入参数及菜单兼容。VMD 不能只复制一个二进制，配置示例使用 `lib/vmd/vmd_LINUXAMD64`；Multiwfn 菜单变化可能使自动输入失效。ORCA 的 OpenMPI 应匹配其发行要求；GROMACS 的 FFTW、编译器运行库等依赖按实际构建配置，不能任意拼接版本。
-
-已验证环境包含 Gaussian 16、ORCA 6.1.0/OpenMPI 4.1.8、CREST 2.12/xTB 6.6.1、GROMACS 2020.1、VMD 1.9.3、Shermo 2.4.1、Multiwfn 3.8 开发版。更换版本后应在目标计算节点做小规模验证。
-
-### 2. 填写集中配置
-
-```bash
-cd /path/to/Auto_ConfoNMR
+git checkout V2.1
 cp config/cluster.example.json config/cluster.json
 ```
 
-将所有 `CHANGE_ME` 替换为实际值，JSON 不支持注释。
+随附辅助程序适用于 Linux x86-64。Gaussian/formchk、ORCA/匹配 OpenMPI、GROMACS、VMD、Open Babel、Python 和 PBS 仍需自行配置。Python 安装 `requirements.txt`，启用 ECD 再安装 `requirements-ecd.txt`。计算节点需能访问程序和项目目录。
+
+### 2. 填写集中配置
+
+用编辑器替换 `config/cluster.json` 中所有 `CHANGE_ME`，JSON 不支持注释。
 
 |字段|填写内容|
 |---|---|
 |`python`|安装了依赖的 Python 可执行文件绝对路径|
-|`projects_root`|新项目父目录；计算节点必须可读写|
-|`scratch_root`|暂存根目录，配置校验仍要求填写；当前项目过程文件直接放在项目内|
-|`resource_bundle`|下一节辅助资源包的绝对路径|
-|`software`|各程序可执行文件；`openmpi` 为安装根目录|
-|`modules`|按加载顺序填写本站 module 名称，无需 module 则填 `[]`|
-|`gaussian_profile`|Gaussian 的 `g16.profile` 路径；若其他初始化已完整提供环境可留空并验证|
-|`path_prepend`|额外 bin 目录，例如 xTB；填路径数组|
-|`ld_library_path_prepend`|实际需要的运行库目录；无额外库填 `[]`|
-|`scheduler.queue/walltime`|本站队列与时间限制|
-|`scheduler.node_resource`|PBS 资源格式，须包含 `{cores}`；可使用 `{memory_gb}`|
-|`scheduler.extra_qsub_args`|本站额外 qsub 参数，按独立参数填数组|
-
-站点路径和队列通常只改这一份文件。项目建立后会冻结配置和环境脚本；修改模板配置不会自动改变已建项目。科研参数仍在 `project.ini` 和计算模板中，不应为了迁移路径而更换方法。
-
-module 的作用是加载集群已经安装的软件环境，不负责安装。已验证站点使用过以下名称，迁移时应换成本站提供的模块：
-
-```bash
-module load apps/anaconda3/2021.05
-module load apps/gromacs/2020_1
-module load 7/mathlib/fftw3-double_3.3.8
-module load 7/mathlib/fftw3-double-openmpi_3.3.8
-```
-
-其中 Anaconda 模块提供基础环境，脚本实际使用 `python` 指定的独立环境；GROMACS 模块提供 gmx，其依赖可能自动加载。两套 FFTW 是该站点的配置，不要求在其他集群全部照搬，也不能替代 ORCA 所需 MPI。
-
-没有 module 时，先独立安装软件及依赖，设置 `modules: []`，填写绝对路径，将必要的 bin 和库目录加入两个路径数组。环境生成顺序为 module、PATH/库路径、Gaussian profile、Multiwfn 路径。若有 module 但批处理内不可用，需要在本站 Shell 初始化中配置 Environment Modules/Lmod。
-
-### 3. 使用随附的辅助资源
-
-运行包中的 `confonmr-resources/` 已包含所需的 13 个辅助程序/参数文件、两份工作簿，以及 CREST、xTB、Shermo、Multiwfn。完整文件表、版本、原作者链接与引用见 [资源包 README](confonmr-resources/README.md)。不需要再单独搜集这些文件。
-
-在 `config/cluster.json` 中，将下列路径改成实际解压位置：
-
-|配置项|使用随附资源时填写|
-|---|---|
+|`projects_root`|新项目父目录，在程序目录外且节点可读写|
+|`scratch_root`|保留有效暂存根路径，当前过程文件直接写入项目|
 |`resource_bundle`|`/实际程序目录/confonmr-resources`|
-|`software.crest`|`/实际程序目录/confonmr-resources/bin/crest`|
-|`software.shermo`|`/实际程序目录/confonmr-resources/bin/Shermo`|
-|`software.multiwfn`|`/实际程序目录/confonmr-resources/multiwfn/Multiwfn_noGUI`|
-|`path_prepend`|数组中加入 `/实际程序目录/confonmr-resources/bin`|
+|`software`|各程序实际执行文件；`openmpi` 填安装根目录|
+|`modules`|本站需要加载的 module，独立安装时填 `[]`|
+|`gaussian_profile`|本机 `g16.profile`，或已由其他初始化完整设置环境时留空|
+|`path_prepend`|额外 bin 目录，包含资源包的 `bin`|
+|`ld_library_path_prepend`|实际需要的库目录，无额外库填 `[]`|
+|`scheduler.queue/walltime`|本人队列权限和本站时限|
+|`scheduler.node_resource`|单节点资源格式，含 `{cores}`，可含 `{memory_gb}`|
+|`scheduler.extra_qsub_args`|账户等额外 qsub 参数，逐项填写，无则 `[]`|
 
-建项目时会把 Sobtop 的 Multiwfn/Open Babel 路径从集中配置写入快照，并为随附 xTB 设置参数目录。二进制只适用于 Linux x86-64；换到其他架构或不兼容的 Linux 系统时，需自行安装对应版本并修改上述路径。程序包不提供 Gaussian、ORCA/OpenMPI、GROMACS、VMD、Open Babel、Python 或 PBS，仍需按第 1、2 节准备。
+使用随附资源时，CREST 填 `confonmr-resources/bin/crest`，Shermo 填 `bin/Shermo`，Multiwfn 填 `multiwfn/Multiwfn_noGUI`，均使用完整绝对路径。建项时自动填写 Sobtop 的 Multiwfn/Open Babel 路径，环境脚本自动设置随附 xTB 参数目录。
 
-先校验文件与权限：
+module 用于加载集群已有软件，不负责安装。将本站模块写入数组；无 module 时填写独立安装路径及必要库目录。ORCA/OpenMPI 需按发行要求配套。PBSPro 可使用 `select=1:ncpus={cores}:mem={memory_gb}gb`，Torque 可使用 `nodes=1:ppn={cores}`；Slurm/LSF 需要另写提交适配。
+
+### 3. 检查资源并试运行
 
 ```bash
 cd /path/to/Auto_ConfoNMR/confonmr-resources
@@ -412,33 +279,37 @@ sha256sum -c SHA256SUMS.txt
 chmod +x bin/crest bin/xtb bin/Shermo multiwfn/Multiwfn_noGUI \
   isostat sobtop atomtype mol2_xyz xyz2QC optional/molclus/molclus
 cd ..
-```
-
-DP4+ 接口工作簿是提取工具处理上游 `custom-dp4plus.xlsx` 后保存的版本，哈希与加密原表不同；STS 工作簿与固定来源一致。请保留资源目录和 `calibration.json` 的对应关系，不要用网上同名表直接替换。更换统计参数或工作簿需要单独审核。
-
-### 4. 检查并试运行
-
-使用配置中填写的 Python 安装依赖并检查配置，下面的路径须替换：
-
-```bash
 /path/to/env/bin/python -m pip install -r requirements.txt
+# 使用 ECD 时：
+/path/to/env/bin/python -m pip install -r requirements-ecd.txt
 /path/to/env/bin/python cluster_config.py check
-# 完整源码仓库可运行测试；运行包不含 tests 目录
-/path/to/env/bin/python -m unittest discover -s tests -v
 ```
 
-配置检查验证字段、路径及资源完整性，不等于所有软件都能在节点启动。随后按日常步骤建立一个小规模项目，限制 DFT 构象预算，检查真实软件调用、频率、权重、命名和输出。至少两个候选及审核后的实验归属才能验证相对结构比较。环境验证成功后再开展完整采样。
+源码包或仓库可运行 `python -m unittest discover -s tests -v`，运行包不含开发测试。随后用小规模项目检查目标节点的真实软件调用、文件输出和权重，再开展正式计算。完整资源版本、module 示例、菜单兼容及跨集群注意事项见 [MIGRATION.md](docs/MIGRATION.md)。
 
-没有安装上游工作簿时，部分工作簿测试会跳过；Windows 上 POSIX 锁测试也会跳过。Linux/PBS 是正式运行环境。项目路径建议避免空格，不要在登录节点直接启动量化主流程。
+模板更新只影响后续新项目，已有项目保留自己的 `workflow/`。计算中的项目涉及绝对路径和状态文件，跨集群续跑需单独评估。
 
-迁移新计算时复制程序目录并重新配置即可。迁移已经计算一半的项目涉及固定快照、绝对路径、状态和软件版本，本版不提供自动跨集群断点迁移；应完整备份后另行评估。
+## 与 V1.2 的区别和验证范围
+
+|内容|V1.2|V2.1|
+|---|---|---|
+|三套 NMR、多样品比较、01—04 操作|已有|保留|
+|实际过程目录、独立软件日志、实时进度|已有|保留，进度按所选模块显示|
+|快速/严谨单独构象|未提供|新增，默认导出前 6 个，可改数量|
+|J / ECD|未提供|建项时可选，J 含原始及两种参考标度页|
+|辅助程序、力场与工作簿|随包提供|沿用同一资源版本|
+|路径配置|集中配置|保留，补齐 Sobtop 与 xTB 资源适配|
+|提交和数据检查|已有保护|加强排队配置、防重提和只读检查|
+
+程序回归、四种建项预检、Bash 语法及 ShellCheck 已通过。真实有机分子完成过快速搜索、严谨构象和耦合全流程；ECD 的真实节点测试采用 H2O2，完成三套 TDDFT、曲线导出及绘图。具体代码版本与测试记录见 [VALIDATION_V2.md](docs/VALIDATION_V2.md)。
+
+有机多构象 ECD、真实实验 J 的预测误差及 dJ 结构鉴别准确率尚未验证。默认 DFT 预算和已有力场缺项也需要结合具体分子评估。
 
 ## 参考与许可
 
-- DP4+：Grimblat, N.; Zanardi, M. M.; Sarotti, A. M. *Beyond DP4: an Improved Probability for the Stereochemical Assignment of Isomeric Compounds using Quantum Chemical Calculations of NMR Shifts*. J. Org. Chem. **2015**, 80, 12526–12534. [DOI](https://doi.org/10.1021/acs.joc.5b02396)。
-- STS：Li, J.; Liu, J.-K.; Wang, W.-X. *GIAO 13C NMR Calculation with Sorted Training Sets Improves Accuracy and Reliability for Structural Assignation*. J. Org. Chem. **2020**, 85, 11350–11358. [DOI](https://doi.org/10.1021/acs.joc.0c01451)。
-- 参数表与工作簿接口参考 [EasyCalcNMR_for_OrgSynLab](https://github.com/chemicalchange/EasyCalcNMR_for_OrgSynLab)，固定来源提交 `095dbc16db04b40371edfaa61a03aa581e5c7d93`；参数来源与哈希保存在 `calibration.json`。
-- 流程相关讨论：[计算化学公社帖子 41199](http://bbs.keinsci.com/forum.php?mod=viewthread&tid=41199&page=1&extra=#pid270367)。
-- 软件说明：[Gaussian](https://gaussian.com/)、[ORCA](https://www.faccts.de/docs/orca/6.1/manual/)、[CREST](https://crest-lab.github.io/crest-docs/)、[xTB](https://xtb-docs.readthedocs.io/)、[GROMACS](https://manual.gromacs.org/)、[VMD](https://www.ks.uiuc.edu/Research/vmd/)、[Open Babel](https://openbabel.org/docs/)、[Molclus](http://www.keinsci.com/research/molclus.html)、[Sobtop](http://sobereva.com/soft/Sobtop/)、[Shermo](http://sobereva.com/soft/shermo/)、[Multiwfn](http://sobereva.com/multiwfn/)。使用时应同时引用所用方法与软件的原始文献。
+- [DP4+](https://doi.org/10.1021/acs.joc.5b02396)、[STS](https://doi.org/10.1021/acs.joc.0c01451)、[J-DP4](https://doi.org/10.1021/acs.orglett.9b01193)及其[作者操作指南](https://sarotti-nmr.weebly.com/uploads/2/4/2/9/24298506/instructive_j-dp4.pdf)。
+- [Bally–Rablen H–H 耦合标度](https://doi.org/10.1021/jo200513q)、[ECD 展宽方法](https://doi.org/10.1007/s11418-013-0768-x)。
+- 工作簿接口与统计参数参考 [EasyCalcNMR](https://github.com/chemicalchange/EasyCalcNMR_for_OrgSynLab/tree/095dbc16db04b40371edfaa61a03aa581e5c7d93)，来源和哈希保存在校准文件中。
+- 相关讨论：[计算化学公社帖子 41199](http://bbs.keinsci.com/forum.php?mod=viewthread&tid=41199&page=1&extra=#pid270367)。完整文献及软件引用见 [REFERENCES.md](docs/REFERENCES.md)。
 
-本版本暂未附带开源许可证；第三方软件、资源及工作簿分别受其自身许可约束。详见 [LICENSE_NOTICE.md](LICENSE_NOTICE.md)。资源包保留原作者许可和引用要求，不改变第三方权利。私有集群配置、凭据和研究数据不随本项目发布。
+Auto ConfoNMR 暂未附带开源许可证。随附辅助程序、参数和工作簿保留原作者许可及引用要求，详见 [资源说明](confonmr-resources/README.md)和 [LICENSE_NOTICE.md](LICENSE_NOTICE.md)。Gaussian、ORCA 等完整安装需另行准备；私有集群配置、凭据和实际研究数据不随包发布。

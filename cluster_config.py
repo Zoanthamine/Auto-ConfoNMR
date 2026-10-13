@@ -19,9 +19,9 @@ SOFTWARE = ('g16', 'formchk', 'orca', 'openmpi', 'crest', 'shermo',
 EXTERNAL_WORKBOOKS = ('DP4plus.xlsx', 'STS.xlsx')
 
 
-def missing_resources(site):
+def missing_resources(site,workbooks=True):
     source = Path(site['resource_bundle'])
-    names = list(EXTERNAL_RESOURCES) + ['upstream/'+n for n in EXTERNAL_WORKBOOKS]
+    names = list(EXTERNAL_RESOURCES) + (['upstream/'+n for n in EXTERNAL_WORKBOOKS] if workbooks else [])
     return [name for name in names if not (source/name).is_file()]
 
 
@@ -68,30 +68,31 @@ def load_site(path=None):
     return site
 
 
-def install_resources(site, workflow):
+def install_resources(site, workflow,workbooks=True):
     """Copy licensed, locally installed helper resources into the fixed snapshot."""
     source = Path(site['resource_bundle'])
-    missing = missing_resources(site)
+    missing = missing_resources(site,workbooks)
     if missing:
-        raise ValueError('外部资源包缺少：'+', '.join(missing)+'；参见 README.md 的迁移配置部分')
+        raise ValueError('外部资源包缺少：'+', '.join(missing)+'；参见 docs/MIGRATION.md')
     target = Path(workflow)/'resources'
     target.mkdir(parents=True, exist_ok=True)
     for name in EXTERNAL_RESOURCES:
         shutil.copy2(source/name, target/name)
-    # Resolve auxiliary executable paths from the site's single configuration.
-    ini = target/'sobtop.ini'
-    text = ini.read_text(encoding='utf-8')
-    commands = {'Multiwfn_cmd': site['software']['multiwfn'],
-                'OpenBabel_cmd': site['software']['obabel']}
-    for key, command in commands.items():
-        if any(c in command for c in ['\n', '\r', '"']):
+    # Site paths belong to the generated project, never the shared resource pack.
+    ini=target/'sobtop.ini'
+    text=ini.read_text(encoding='utf-8')
+    for key,command in {'Multiwfn_cmd':site['software']['multiwfn'],
+                        'OpenBabel_cmd':site['software']['obabel']}.items():
+        if any(c in command for c in ('\n','\r','"')):
             raise ValueError('Sobtop executable path contains unsupported characters: '+key)
-        text = re.sub(r'(?m)^\s*'+key+r'\s*=.*$',
-                      lambda match: '  '+key+'= "'+command+'"', text)
-    ini.write_text(text, encoding='utf-8')
+        pattern=r'(?m)^[ \t]*'+key+r'[ \t]*=.*$'
+        text,count=re.subn(pattern,lambda _: '  '+key+'= "'+command+'"',text)
+        if count>1:raise ValueError('Duplicate Sobtop executable setting: '+key)
+        if not count:text+='\n  '+key+'= "'+command+'"\n'
+    ini.write_text(text,encoding='utf-8')
     upstream = Path(workflow)/'upstream'
     upstream.mkdir(exist_ok=True)
-    for name in EXTERNAL_WORKBOOKS:
+    for name in (EXTERNAL_WORKBOOKS if workbooks else []):
         shutil.copy2(source/'upstream'/name, upstream/name)
 
 
@@ -116,9 +117,8 @@ def runtime_text(site):
                   'set +u', '# shellcheck disable=SC1090,SC1091', 'if source '+q(profile)+'; then :; else',
                   "  printf 'Gaussian环境初始化失败。\\n' >&2", '  return 1', 'fi', 'set -u',
                   ': "${GAUSS_EXEDIR:?Gaussian profile did not set GAUSS_EXEDIR}"']
-    xtb_data = Path(site['resource_bundle'])/'share/xtb'
-    if xtb_data.is_dir():
-        lines += ['export XTBPATH='+q(str(xtb_data))+':"${XTBPATH:-}"']
+    xtb_data=Path(site['resource_bundle'])/'share/xtb'
+    if xtb_data.is_dir():lines+=['export XTBPATH='+q(str(xtb_data))+':"${XTBPATH:-}"']
     lines += ['export Multiwfnpath='+q(str(Path(site['software']['multiwfn']).parent)), '']
     return '\n'.join(lines)
 

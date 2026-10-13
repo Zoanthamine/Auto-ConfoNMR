@@ -37,7 +37,7 @@ def method_map(cfg):
 
 
 def template_method(method,cfg):
-    # Preserve the method order recorded by configurations without a layout key.
+    # Resources in this release use v4 order. Missing layout means historic v2/v3.
     method_map(cfg)
     return method if cfg.get('method_layout')==LAYOUT else {'01':'01','02':'03','03':'02'}[method]
 
@@ -45,7 +45,7 @@ def template_method(method,cfg):
 def apply_choices(cfg,nmr_profile='legacy_pcm_g09',clustering_profile='coarse'):
     if nmr_profile not in NMR_PROFILES:raise ValueError('未知NMR方案：'+nmr_profile)
     if clustering_profile not in CLUSTERS:raise ValueError('未知聚类档位：'+clustering_profile)
-    cfg['protocol']='Auto_ConfoNMR_V1.2_custom'
+    cfg['protocol']='Auto_ConfoNMR_V2.1_custom'
     cfg['method_layout']=LAYOUT
     cfg['nmr_profile']=nmr_profile
     model,defaults,_=NMR_PROFILES[nmr_profile]
@@ -67,7 +67,8 @@ def apply_choices(cfg,nmr_profile='legacy_pcm_g09',clustering_profile='coarse'):
 def nmr_text(text,cfg):
     settings=cfg.get('nmr_settings')
     if settings is None:
-        # A configuration without explicit settings retains its SMD/G16 semantics.
+        # Historical config semantics stay SMD/G16 even though v4 base templates
+        # now visibly contain the repaired default. Already historic text is exact.
         if re.search(r'(?i)\bscrf\s*=?\s*\(smd\b',text) and not re.search(r'(?i)\bg09defaults\b',text):return text
         settings={'solvent_model':'SMD','gaussian_defaults':'G16'}
     model=settings['solvent_model'];defaults=settings['gaussian_defaults']
@@ -94,7 +95,7 @@ def cluster_options(cfg,stage):
 def validate_choices(cfg):
     method_map(cfg)
     if cfg.get('method_layout')==LAYOUT and not {'nmr_settings','nmr_profile','clustering_profile'} <= set(cfg):
-        raise ValueError('配置缺少显式NMR或聚类方案，拒绝回退到历史默认值')
+        raise ValueError('v4缺少显式NMR或聚类方案，拒绝回退到历史默认值')
     if 'nmr_settings' in cfg:
         profile=cfg.get('nmr_profile')
         if profile not in NMR_PROFILES:raise ValueError('未知NMR方案')
@@ -116,7 +117,7 @@ def validate_choices(cfg):
 
 
 def overview(cfg):
-    lines=['# 本项目计算方案','',
+    lines=['# 本项目计算方案','', '编号版本：'+cfg.get('method_layout','历史v2/v3编号'),
            'NMR方案：'+NMR_PROFILES.get(cfg.get('nmr_profile'),('','','历史SMD方案'))[2],
            '聚类档位：'+cfg.get('clustering_profile','历史固定阈值'),'',
            '|编号|NMR泛函/基组|后处理|','|---|---|---|']
@@ -124,9 +125,20 @@ def overview(cfg):
     lines+=['','## 聚类参数','', '|阶段|Edis/kcal mol-1|Gdis/Å|isostat T/K|Nout|Eout/kcal mol-1|','|---|---:|---:|---:|---:|---:|']
     for stage,v in cfg['clustering'].items():
         if isinstance(v,dict):lines.append('|{}|{}|{}|{}|{}|{}|'.format(stage,v['Edis'],v['Gdis'],v['T'],v['Nout'],v['Eout']))
-    lines+=['','isostat的T只影响该工具分布显示；最终混合比例使用Shermo温度{} K。'.format(cfg['shermo']['T']),
-            '最大DFT构象预算{}；累计分布{}仅针对完成的DFT集合。'.format(cfg['max_conformers'],cfg['population_coverage']),
-            '共同几何为气相B3LYP-D3BJ/6-31G(d)，权重来自气相ORCA/Shermo。共同几何与权重条件不同于方法论文，须保留适用性差异记录。',
+    lines+=['','isostat的T只影响该工具布居显示；最终混合比例使用Shermo温度{} K。'.format(cfg['shermo']['T']),
+            '最大DFT构象预算{}；累计布居{}仅针对完成的DFT集合。'.format(cfg['max_conformers'],cfg['population_coverage']),
+            '共同几何为气相B3LYP-D3BJ/6-31G(d)，布居来自气相ORCA/Shermo；与方法论文的几何和权重条件不同。',
             'DP4+/STS输出保留自定义方案标记。详细差异：']
     lines+=['- '+s for s in cfg['postprocessing'][0]['differences']]
+    from module_options import options,analysis
+    m,a=options(cfg),analysis(cfg)
+    lines+=['','## V2 模块选择','',
+            '基础模式：'+m['base']+'；构象布居：'+m['conformer_weight']+'；导出前 '+str(a['top_n'])+' 个构象。',
+            '耦合模块：'+str(m['coupling'])+'；ECD模块：'+str(m['ecd'])+'。',
+            '单独构象模式不运行上表三套NMR；快速GFN2档也不运行DFT/频率/ORCA/Shermo。',
+            'J模块另算气相B3LYP/6-31G(d,p)、G09Defaults、FC-only和GIAO屏蔽，不复用01。',
+            'J原文默认统计参数对应MMFF几何；本版DFT几何/Shermo权重属于自定义探索条件。',
+            'ECD：SMD '+m['ecd_solvent']+'，'+str(m['ecd_states'])+'态；方法 '+','.join(m['ecd_methods'])+'。',
+            'ECD方法编号与NMR编号属于不同表：01 PBE0/TZVP；02 CAM-B3LYP/6-311G*；03 B3LYP/6-311G*。',
+            'ECD不注入NMR溶剂或G09Defaults；仍使用共用气相几何和Shermo布居。']
     return '\n'.join(lines)+'\n'

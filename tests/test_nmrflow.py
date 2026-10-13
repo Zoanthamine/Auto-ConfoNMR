@@ -209,7 +209,7 @@ class ScientificTests(unittest.TestCase):
 
 class PipelineTests(unittest.TestCase):
     @unittest.skipUnless(all((nf.ROOT/'upstream'/name).is_file() for name in ('DP4plus.xlsx','STS.xlsx')),
-                         'External upstream workbooks are not installed; see README.md 的迁移配置部分')
+                         'External upstream workbooks are not installed; see docs/MIGRATION.md')
     def test_weighted_equivalence_and_workbook_cells(self):
         import openpyxl
         with tempfile.TemporaryDirectory() as directory:
@@ -232,7 +232,8 @@ class PipelineTests(unittest.TestCase):
                         text = re.sub(r'Isotropic = ([-\d.]+)',lambda m:'Isotropic = '+str(float(m[1])+offset),text)
                         log = work/'job.log'
                         log.write_text(text)
-                        nf.save(work/'receipt.json',{'output_sha256':nf.digest(log)})
+                        inp=log.with_suffix('.gjf');inp.write_text('# test NMR input\n')
+                        nf.save(work/'receipt.json',{'output_sha256':nf.digest(log),'input_sha256':nf.digest(inp),'stage':'nmr'})
                         logs[method] = str(log)
                     records.append({'id':cid,'geometry':geom,'nmr_weight':weight,'nmr':logs})
                 nf.save(root/'runs'/candidate['id']/'conformers.json',{'config':cfg,'records':records,

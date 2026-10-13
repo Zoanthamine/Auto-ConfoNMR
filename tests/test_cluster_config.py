@@ -62,22 +62,6 @@ class ClusterConfigurationChecks(unittest.TestCase):
         (Path(self.site['resource_bundle'])/'upstream/STS.xlsx').unlink()
         with self.assertRaisesRegex(ValueError, 'STS.xlsx'): cc.install_resources(self.site, target)
 
-    def test_portable_resource_paths_and_xtb_data(self):
-        self.resources()
-        source = Path(self.site['resource_bundle'])
-        (source/'share/xtb').mkdir(parents=True)
-        (source/'sobtop.ini').write_text(
-            '  nthreads= 4\n  k_method= 2\n  Multiwfn_cmd= "old"\n  OpenBabel_cmd= "old"\n')
-        target = self.base/'workflow'
-        cc.install_resources(self.site, target)
-        actual = (target/'resources/sobtop.ini').read_text()
-        self.assertIn('nthreads= 4', actual)
-        self.assertIn('k_method= 2', actual)
-        self.assertIn('Multiwfn_cmd= "'+self.site['software']['multiwfn']+'"', actual)
-        self.assertIn('OpenBabel_cmd= "'+self.site['software']['obabel']+'"', actual)
-        self.assertNotIn('"old"', actual)
-        self.assertIn('export XTBPATH=', cc.runtime_text(self.site))
-
     def test_scheduler_cores_memory_coupled(self):
         site = self.load()
         site['scheduler']['node_resource'] = 'select=1:ncpus={cores}:mem={memory_gb}gb'
@@ -86,10 +70,26 @@ class ClusterConfigurationChecks(unittest.TestCase):
         self.assertEqual(args, ['-q','test_queue','-l','select=1:ncpus=8:mem=24gb',
                                 '-l','walltime=72:00:00','-A','account'])
 
+    def test_sobtop_paths_are_configured_without_changing_shared_resources(self):
+        self.resources();source=Path(self.site['resource_bundle'])/'sobtop.ini'
+        source.write_text('iskipgendih= 0\nMultiwfn_cmd= "old"\nOpenBabel_cmd= "old"\n',encoding='utf-8')
+        before=source.read_bytes();target=self.base/'workflow'
+        cc.install_resources(self.site,target)
+        text=(target/'resources/sobtop.ini').read_text(encoding='utf-8')
+        self.assertIn('Multiwfn_cmd= "'+self.site['software']['multiwfn']+'"',text)
+        self.assertIn('OpenBabel_cmd= "'+self.site['software']['obabel']+'"',text)
+        self.assertIn('iskipgendih= 0',text);self.assertEqual(source.read_bytes(),before)
+
+    def test_bundled_xtb_data_path_is_exported_only_when_present(self):
+        self.assertNotIn('export XTBPATH=',cc.runtime_text(self.site))
+        data=Path(self.site['resource_bundle'])/'share/xtb';data.mkdir(parents=True)
+        text=cc.runtime_text(self.site)
+        self.assertIn('export XTBPATH=',text);self.assertIn(str(data),text)
+        self.assertIn('${XTBPATH:-}',text)
+
     def test_runtime_quotes_paths_and_modules(self):
         site = self.load()
-        site['python'] = '/migration/env/bin/python'
-        site['software']['multiwfn'] = '/migration/Multiwfn_noGUI'
+        site['python'] = str(self.base/'env/bin/python')
         site['modules'] = ['gromacs/2024']
         site['path_prepend'] = ["/a path/has'quote"]
         text = cc.runtime_text(site)

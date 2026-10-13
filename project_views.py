@@ -11,7 +11,7 @@ import shutil
 import tempfile
 import time
 from urllib.parse import quote
-from progress_status import snapshot
+from progress_status import snapshot, read_json
 
 
 def atomic_text(path, text):
@@ -89,7 +89,10 @@ def collect(project,copy_logs=False):
     from protocol_options import method_map
     stages={'opt':'01_优化','opt1':'01_优化_尝试1','opt2':'01_优化_尝试2','opt3':'01_优化_尝试3','freq':'02_频率'}
     stages.update({'nmr'+mid:'{:02d}_NMR_{}_{}'.format(int(mid)+2,mid,f) for mid,(f,_,_) in method_map(cfg).items()})
-    light={'.log','.out','.gjf','.inp','.json','.txt','.csv','.mdp','.tcl','.top','.itp','.chg','.xyz','.pdb','.gro'}
+    stages.update({'opt1':'01_优化尝试1','opt2':'01_优化尝试2','opt3':'01_优化尝试3',
+                   'coupling':'06_J_FC','coupling_shielding':'06_J_屏蔽',
+                   'ecd01':'07_ECD_PBE0','ecd02':'08_ECD_CAM_B3LYP','ecd03':'09_ECD_B3LYP'})
+    light={'.log','.out','.gjf','.inp','.json','.txt','.csv','.mdp','.tcl','.top','.itp','.chg','.xyz','.pdb','.gro','.png','.svg','.pdf','.xlsx'}
     def expose(src,dst,label):
         if direct:
             src=Path(src).resolve()
@@ -140,22 +143,33 @@ def collect(project,copy_logs=False):
                     elif f.suffix in ('.log','.json','.mdp','.top','.itp','.chg','.tcl'):
                         expose(f,root/'04_采样与软件日志'/cid/f.relative_to(sampling),'采样/软件记录')
         for f in (run/'shermo').glob('*'):
-            if f.is_file():expose(f,root/'05_Shermo与分布'/cid/f.name,'Shermo')
+            if f.is_file():expose(f,root/'05_Shermo与布居'/cid/f.name,'Shermo')
         for name in ['conformers.json','state.json']:
             f=run/name
-            if f.is_file():expose(f,root/'05_Shermo与分布'/cid/name,name)
+            if f.is_file():expose(f,root/'05_Shermo与布居'/cid/name,name)
         m=run/'conformers.json';s=run/'state.json'
-        state=json.loads(s.read_text())['status'] if s.is_file() else '尚未开始'
-        if m.is_file():
-            z=json.loads(m.read_text());records=z['records'];g0=min(r['gibbs_hartree'] for r in records)
+        state=live_by_id[cid]['status']
+        z=read_json(m,live_by_id[cid]['warnings'])
+        if z:
+            records=z['records']
+            energy_key='electronic_energy_hartree' if z.get('weight_model')=='gfn2_electronic_energy' else 'gibbs_hartree'
+            g0=min(r[energy_key] for r in records)
             summary.append([cid,state,z['ensemble_total'],z['dft_selected'],len(records),len(z['nmr_ids']),100*z['coverage_within_computed_ensemble']])
-            for r in records:weights.append([cid,r['id'],(r['gibbs_hartree']-g0)*627.509474,100*r['weight'],100*r['nmr_weight'] if 'nmr_weight' in r else '',r['id'] in z['nmr_ids']])
+            for r in records:weights.append([cid,r['id'],(r[energy_key]-g0)*627.509474,100*r['weight'],100*r['nmr_weight'] if 'nmr_weight' in r else '',r['id'] in z['nmr_ids']])
         else:
             r=live_by_id[cid]
             summary.append([cid,state,r['gfn2'] if r['gfn2'] is not None else '待生成',
-                            r['dft_inputs'],r['positive_frequencies'],r['nmr_complete_conformers'],'待最终汇总'])
+                            r['dft_inputs'],r['positive_frequencies'],r['property_complete_conformers'],'待最终汇总'])
     for f in (out/'exports').glob('*'):
         if f.is_file():expose(f,project/'最终结果'/'最新导出'/f.name,'当前exports')
+    current_modules=project/'最终结果'/'附加模块'
+    if copy_logs and (out/'module_exports').is_dir() and current_modules.exists():
+        # Preserve a previous view rather than leaving stale top-N XYZ files in the current view.
+        history=project/'最终结果'/'模块历史快照';history.mkdir(parents=True,exist_ok=True)
+        current_modules.rename(history/(time.strftime('%Y%m%d_%H%M%S')+'_'+str(time.time_ns())))
+    for f in (out/'module_exports').rglob('*'):
+        if f.is_file() and not any(part.startswith('.') or '_previous_' in part for part in f.relative_to(out/'module_exports').parts):
+            expose(f,project/'最终结果'/'附加模块'/f.relative_to(out/'module_exports'),'V2模块结果')
     # Preserve the case's previously published upper/lower comparisons as named views.
     for point in ['upper','lower']:
         for f in (project/'results'/point).glob('*'):
@@ -185,7 +199,7 @@ def collect(project,copy_logs=False):
                 atom_rows.append([candidate['id'],row['calculation_atom'],row['element'],row['input_serial']])
     atomic_text(project/'原子编号对照.csv',csv_text(['candidate','calculation_atom','element','input_serial'],atom_rows))
     atomic_text(project/'文件索引.csv',csv_text(['原始文件','集中查看位置','阶段','形式','字节数'],index))
-    atomic_text(project/'构象分布与混合比例.csv',csv_text(['结构','构象','相对G_kcal_mol','原始分布_percent','NMR混合_percent','用于NMR'],weights))
+    atomic_text(project/'构象分布与混合比例.csv',csv_text(['结构','构象','相对E或G_kcal_mol','原始分布_percent','性质计算混合_percent','选入性质集合'],weights))
     storage_note = '本目录直接保存实际计算文件，无需依赖外部scratch链接。\n' if direct else '历史布局：查看目录不改变原始文件；大文件保持链接，普通输入/日志在整理时复制快照。\n'
     atomic_text(root/'原始计算位置.txt','原始计算目录：'+str(out)+'\n'+storage_note+'整理时间：'+time.strftime('%Y-%m-%d %H:%M:%S')+'\n')
     def ht(headers,rows):
@@ -193,14 +207,14 @@ def collect(project,copy_logs=False):
     links=''.join('<li><a href="'+quote(row[1])+'">'+html.escape(row[1])+'</a></li>' for row in index)
     page='''<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>NMR计算总览</title><style>body{font:16px "Microsoft YaHei",sans-serif;max-width:1200px;margin:32px auto;color:#243746;padding:0 24px}table{border-collapse:collapse;width:100%;margin:18px 0}th,td{border:1px solid #cbd6de;padding:9px;text-align:left}th{background:#174a67;color:white}a{color:#176a97}li{margin:6px 0}p{line-height:1.7}details{margin:24px 0}</style><h1>NMR 计算总览</h1>'''
     page+='<p>项目：'+html.escape(str(project))+'<br>更新：'+time.strftime('%Y-%m-%d %H:%M:%S')+'。状态来自已有记录；是否仍在运行请同时查询队列。</p>'
-    page+=ht(['结构','状态','GFN2构象','DFT输入','正频率','NMR构象','覆盖/%'],summary)
+    page+=ht(['结构','状态','GFN2构象','DFT输入','合格构象','性质构象','覆盖/%'],summary)
     page+='<h2>阶段实时记录</h2><p>读取时间：'+html.escape(live['checked_at'])+'。只统计已完成回执；完整覆盖率等待最终汇总，运行状态同时以队列为准。</p>'
-    page+=ht(['结构','当前阶段/构象','优化完成','ORCA完成','NMR01/02/03已完成任务','最近日志更新'],
+    page+=ht(['结构','当前阶段/构象','优化完成','ORCA完成','所选性质已完成任务','最近日志更新'],
              [[r['id'],r['current'],r['optimized'],r['single_points'],
-               ' / '.join(str(r['nmr'].get(m,0)) for m in ('01','02','03')),r['log_modified'] or '尚无记录']
+               ' / '.join(k+'='+str(v) for k,v in r['properties'].items()),r['log_modified'] or '尚无记录']
               for r in live['candidates']])
     page+='<p><a href="实时进度.html">02入口最近一次读取的详细进度快照</a></p>'
-    page+='<h2>构象混合比例</h2><p>每候选内部混合；01/02/03及各实验样品共享相同分布。99%只针对已计算的DFT集合。</p>'+ht(['结构','构象','ΔG kcal/mol','原始/%','NMR/%','选中'],[[*r[:2],f'{r[2]:.5f}',f'{r[3]:.6f}',f'{r[4]:.6f}' if r[4]!='' else '未做NMR',r[5]] for r in weights])
+    page+='<h2>构象混合比例</h2><p>每候选内部混合；快速模式使用GFN2电子能E，精修模式使用ORCA/Shermo自由能G。覆盖率只针对已采样或已精修集合，不代表整个构象空间。导出前N个的比例详见附加模块/conformers。</p>'+ht(['结构','构象','ΔE或ΔG kcal/mol','原始/%','性质混合/%','选中'],[[*r[:2],f'{r[2]:.5f}',f'{r[3]:.6f}',f'{r[4]:.6f}' if r[4]!='' else '未运行性质',r[5]] for r in weights])
     page+='<p><a href="文件索引.csv">完整文件索引</a> · <a href="构象分布与混合比例.csv">权重CSV</a></p><details><summary>展开各软件输入、输出和构型文件</summary><ul>'+links+'</ul></details>'
     page+='<p>力场警告请检查04_采样与软件日志中的topology_quality.json；正常结束与有限预算覆盖率不能证明采样充分。</p></html>'
     atomic_text(project/'计算总览.html',page)

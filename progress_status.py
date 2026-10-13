@@ -92,10 +92,18 @@ def candidate_snapshot(candidate,cfg,output,events):
     if gfn2 is None:
         ensemble=next((f for f in (run/'sampling/gfn2.xyz',run/'sampling/gfn2/cluster.xyz') if f.is_file()),None)
         if ensemble:gfn2=xyz_count(ensemble,warnings)
-    methods=cfg.get('methods',['01','02','03'])
+    modules=cfg.get('modules',{})
+    base=modules.get('base','nmr')
+    methods=cfg.get('methods',['01','02','03']) if base=='nmr' else []
     nmr={m:len(stages.get('nmr'+m,set())) for m in methods}
     completed=set.intersection(*(stages.get('nmr'+m,set()) for m in methods)) if methods else set()
     target=len(manifest.get('nmr_ids',[]))*len(methods) if manifest else None
+    property_stages=['nmr'+m for m in methods]
+    if modules.get('coupling'):property_stages+=['coupling','coupling_shielding']
+    if modules.get('ecd'):property_stages+=['ecd'+m for m in modules.get('ecd_methods',['01','02','03'])]
+    properties={m:len(stages.get(m,set())) for m in property_stages}
+    property_completed=set.intersection(*(stages.get(m,set()) for m in property_stages)) if property_stages else set()
+    if not property_stages and manifest:property_completed=set(r['id'] for r in manifest.get('records',[]))
     coverage=manifest.get('coverage_within_computed_ensemble') if manifest else None
     current='全部计算完成' if status=='complete' else ('尚未开始' if status=='尚未开始' else '阶段切换/汇总中（请结合队列）')
     event=None
@@ -117,6 +125,9 @@ def candidate_snapshot(candidate,cfg,output,events):
             'optimized':len(stages.get('opt',set())),'positive_frequencies':len(stages.get('freq',set())),
             'rejected_frequencies':len(rejected),'single_points':len(stages.get('sp',set())),
             'nmr':nmr,'nmr_tasks':sum(nmr.values()),'nmr_target_tasks':target,
+            'properties':properties,'property_complete_conformers':len(property_completed),
+            'property_target_tasks':len(manifest.get('nmr_ids',[]))*len(property_stages) if manifest else None,
+            'base':base,'weight_model':modules.get('conformer_weight','free_energy'),
             'nmr_complete_conformers':len(completed),'coverage_percent':100*coverage if coverage is not None else None,
             'current':current,'last_event_time':event.get('time') if event else None,
             'log':log,'log_modified':modified,'warnings':warnings}
@@ -141,8 +152,13 @@ def format_snapshot(data):
         tasks=str(r['nmr_tasks'])+'/'+str(r['nmr_target_tasks']) if r['nmr_target_tasks'] is not None else str(r['nmr_tasks'])+'（目标待汇总）'
         lines.append('结构 {}：{}；GFN2={}，DFT输入={}，优化完成={}，正频率={}，ORCA完成={}，覆盖={}'.format(
             r['id'],r['status'],r['gfn2'] if r['gfn2'] is not None else '待生成',r['dft_inputs'],r['optimized'],r['positive_frequencies'],r['single_points'],coverage))
-        lines.append('  NMR任务已完成：{}；{}；三方法全部完成的构象={}。'.format(
-            tasks,'，'.join('NMR{}={}'.format(m,n) for m,n in r['nmr'].items()),r['nmr_complete_conformers']))
+        if r['nmr']:
+            lines.append('  NMR任务已完成：{}；{}；所选NMR方法全部完成的构象={}。'.format(
+                tasks,'，'.join('NMR{}={}'.format(m,n) for m,n in r['nmr'].items()),r['nmr_complete_conformers']))
+        else:
+            lines.append('  单独构象；比例来源：'+('GFN2电子能估算' if r['weight_model']=='gfn2_energy' else 'DFT/ORCA/Shermo自由能'))
+        extras={k:v for k,v in r['properties'].items() if not k.startswith('nmr')}
+        if extras:lines.append('  附加性质已完成：'+'，'.join(k+'='+str(v) for k,v in extras.items()))
         lines.append('  当前：'+r['current'])
         if r['log']:lines.append('  独立日志：{}；最后更新：{}'.format(r['log'],r['log_modified']))
         if r['rejected_frequencies']:lines.append('  频率剔除构象数：'+str(r['rejected_frequencies']))

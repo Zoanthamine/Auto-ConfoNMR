@@ -12,6 +12,7 @@ import experiment_batch as batch
 import nmrflow as nf
 import postprocess as pp
 import project_console as pc
+import module_options as mo
 from test_nmrflow import gaussian
 
 
@@ -20,6 +21,8 @@ class SampleChecks(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
         self.cfg = json.loads((nf.ROOT/'job.example.json').read_text(encoding='utf-8'))
+        self.cfg['modules']=dict(mo.DEFAULT_MODULES)
+        self.cfg['module_analysis']=dict(mo.DEFAULT_ANALYSIS)
         self.cfg.update(candidates=[{'id': 'candidate_A', 'input': 'A.xyz'}, {'id': 'candidate_B', 'input': 'B.xyz'}], output='raw')
         self.settings = configparser.ConfigParser(interpolation=None)
         self.settings.read_string(pc.settings_text(self.cfg))
@@ -120,9 +123,10 @@ class SampleChecks(unittest.TestCase):
                 if c['id']=='candidate_B':
                     text = re.sub(r'Isotropic = ([-\d.]+)', lambda m: 'Isotropic = '+str(float(m[1])+0.3), text)
                 log = work/'job.log'; log.write_text(text)
-                nf.save(work/'receipt.json', {'output_sha256': nf.digest(log)})
+                inp=log.with_suffix('.gjf');inp.write_text('# test NMR input\n')
+                nf.save(work/'receipt.json', {'output_sha256': nf.digest(log),'input_sha256':nf.digest(inp),'stage':'nmr'})
                 logs[method] = str(log)
-            nf.save(self.out/c['id']/'conformers.json', {'config': cfg, 'records': [dict(id='c0001', geometry=self.geom, weight=1, gibbs_hartree=-40.0, nmr_weight=1, nmr=logs)],
+            nf.save(self.out/c['id']/'conformers.json', {'candidate':c['id'],'config': cfg, 'records': [dict(id='c0001', geometry=self.geom, weight=1, gibbs_hartree=-40.0, nmr_weight=1, nmr=logs)],
                     'nmr_ids': ['c0001'], 'coverage_within_computed_ensemble': 1, 'ensemble_total': 1, 'dft_selected': 1})
             nf.save(self.out/c['id']/'state.json', {'status': 'complete', 'identity': {'config': nf.calculation_config(cfg)}})
         return cfg

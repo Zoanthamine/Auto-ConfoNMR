@@ -25,7 +25,7 @@ class ProtocolChecks(unittest.TestCase):
 
     def test_profiles_change_actual_gaussian_input_and_stage_hash(self):
         geom=[['C',0,0,0],['H',1,0,0],['H',0,1,0],['H',0,0,1],['H',-1,0,0]]
-        from tests.test_nmrflow import gaussian
+        from test_nmrflow import gaussian
         for profile,model,keyword in [('legacy_pcm_g09','IEFPCM',True),('pcm_g16','IEFPCM',False),('smd_g16','SMD',False)]:
             cfg=self.cfg();apply_choices(cfg,profile)
             for mid,functional in [('01','b3lyp/6-31g(d)'),('02','mpw1pw91/6-311+g(d,p)'),('03','wb97xd/6-31g(d)')]:

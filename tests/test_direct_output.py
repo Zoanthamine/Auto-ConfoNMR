@@ -12,7 +12,7 @@ from unittest.mock import patch
 import nmrflow as nf
 import project_views as pv
 import sampling as sp
-from tests.test_nmrflow import gaussian
+from test_nmrflow import gaussian
 
 
 class DirectOutputChecks(unittest.TestCase):
@@ -46,6 +46,8 @@ class DirectOutputChecks(unittest.TestCase):
         self.assertTrue((directory/'Gau_opt_001RR_C0001_A02.gjf').is_file())
         self.assertFalse((directory/'job.log').exists())
         self.assertEqual(nf.artifact_stem(directory.parent/'nmr02',self.cfg,'Gau','nmr'),'Gau_nmr02_001RR_C0001')
+        self.assertEqual(nf.artifact_stem(directory.parent/'ecd02',self.cfg,'Gau','ecd'),'Gau_ecd02_001RR_C0001')
+        self.assertEqual(nf.artifact_stem(directory.parent/'coupling',self.cfg,'Gau','coupling'),'Gau_coupling_001RR_C0001')
 
     def test_orca_input_and_side_products_share_identifiable_stem(self):
         directory=self.root/'002SR/conformers/c0007/sp'

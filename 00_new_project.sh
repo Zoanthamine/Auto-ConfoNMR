@@ -10,7 +10,7 @@ elif [[ -f "$SCRIPT_DIR/config/cluster.json" ]]; then
   # System Python only reads JSON; the configured environment runs the workflow.
   PYTHON="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["python"])' "$SCRIPT_DIR/config/cluster.json")"
 else
-  printf '请先按 README.md 的迁移配置部分 配置 config/cluster.json。\n' >&2
+  printf '请先按 docs/MIGRATION.md 配置 config/cluster.json。\n' >&2
   exit 2
 fi
 readonly PYTHON

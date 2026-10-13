@@ -1,1 +1,1 @@
-"""Maintenance regression tests; not required for workflow execution."""
+"""Development checks; omitted from the runtime package."""

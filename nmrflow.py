@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Stage-isolated Huangjt NMR workflow. Python >=3.8; numpy required."""
 import argparse
-import uuid
-import socket
-import errno
 import csv
+import errno
 import hashlib
 import json
 import math
@@ -12,10 +10,12 @@ import os
 from pathlib import Path
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import time
 import tempfile
+import uuid
 from contextlib import contextmanager
 from protocol_options import cluster_options, method_map, nmr_text, template_method, validate_choices
 
@@ -64,7 +64,7 @@ def output_lock(output):
                     lock();acquired=True
                 except OSError as exc:
                     if os.name!='nt' and exc.errno in (errno.ENOLCK,errno.ENOSYS,errno.EOPNOTSUPP):
-                        # All clients of this lock implementation still hold the SAME atomic-directory gate.
+                        # All V2 clients still hold the SAME atomic-directory gate.
                         # Never fall back to a separate per-node/local lock.
                         owner.update(mechanism='atomic_directory',kernel_lock_errno=exc.errno)
                         save(owner_path,owner)
@@ -87,7 +87,7 @@ def digest(path):
 
 
 def calculation_config(cfg):
-    return {k:v for k,v in cfg.items() if k not in ('postprocessing','experiment','assignments')}
+    return {k:v for k,v in cfg.items() if k not in ('postprocessing','experiment','assignments','module_analysis')}
 
 
 def save(path, obj):
@@ -186,14 +186,21 @@ def gaussian_read(path, stage):
         idx = int(a)
         require(idx not in shielding, '{}: multiple shielding tables; split Link1 jobs first'.format(path))
         shielding[idx] = (el, float(val.replace('D', 'E')))
-    if stage == 'nmr':
+    if stage in ('nmr','coupling_shielding'):
         require(len(shielding) == len(geom), '{}: incomplete shielding table'.format(path))
         require(all(shielding[i+1][0] == a[0] for i, a in enumerate(geom)), 'Shielding atom identity mismatch')
     require(all(math.isfinite(x) for a in geom for x in a[1:]), 'Invalid Gaussian geometry')
     require(all(math.isfinite(v) for _,v in shielding.values()), 'Nonfinite shielding')
     require(math.isfinite(float(energies[-1].replace('D','E'))), 'Nonfinite SCF energy')
-    return {'geometry': geom, 'energy': float(energies[-1].replace('D', 'E')),
+    result={'geometry': geom, 'energy': float(energies[-1].replace('D', 'E')),
             'frequencies': frequencies, 'shielding': shielding}
+    if stage=='coupling':
+        from coupling import parse_fc
+        result['fc_hz']=parse_fc(text,len(geom))
+    if stage=='ecd':
+        from ecd import parse_transitions
+        result['transitions']=parse_transitions(text)
+    return result
 
 
 def rms(a, b):
@@ -263,7 +270,7 @@ def artifact_stem(directory, cfg, software, stage):
         attempt = re.fullmatch(r'opt([123])', directory.name)
         require(attempt, 'Missing optimization attempt number')
         return '{}_opt_{}_{}_A{:02d}'.format(software,candidate,conformer,int(attempt[1]))
-    phase = directory.name if stage == 'nmr' else stage
+    phase = directory.name if stage in ('nmr','ecd') else stage
     return '{}_{}_{}_{}'.format(software,phase,candidate,conformer)
 
 
@@ -272,6 +279,9 @@ def quantum(template, geom, cfg, directory, stage):
     text = Path(template).read_text()
     if stage == 'nmr':
         text = nmr_text(text,cfg)
+    if stage=='ecd':
+        from module_options import ecd_text
+        text=ecd_text(text,cfg)
     text = re.sub(r'%mem=.*', '%mem={}GB'.format(cfg['memory_gb']), text, flags=re.I)
     text = re.sub(r'%nprocshared=.*', '%nprocshared={}'.format(cfg['cores']), text, flags=re.I)
     text = re.sub(r'^[ \t]*0[ \t]+1[ \t]*$', '{} {}'.format(cfg['charge'], cfg['multiplicity']), text, flags=re.M)
@@ -284,9 +294,13 @@ def quantum(template, geom, cfg, directory, stage):
         old = json.loads(receipt.read_text())
         require(old['input_sha256'] == signature and digest(log) == old['output_sha256'],
                 'Changed input/output in {}; choose a new run directory'.format(directory))
-        return gaussian_read(log, stage)
+        result=gaussian_read(log, stage)
+        if stage=='ecd':
+            from module_options import options
+            require(len(result['transitions'])==options(cfg)['ecd_states'],'Incomplete/unexpected ECD state count')
+        return result
     require(not log.exists(), 'Unfinished stage {}; archive it before retrying'.format(directory))
-    inp.write_text(text)
+    inp.write_text(text,encoding='utf-8')
     env = os.environ.copy()
     env['NMR_DETAIL_LOG'] = '0'
     scratch = directory/'scratch'
@@ -300,6 +314,9 @@ def quantum(template, geom, cfg, directory, stage):
             save(receipt, {'input_sha256':signature,'output_sha256':digest(log),'stage':stage,'status':'rejected_frequency'})
         raise
     require(rms(geom, result['geometry']) < (100 if stage == 'opt' else 1e-4), 'Single-point geometry changed')
+    if stage=='ecd':
+        from module_options import options
+        require(len(result['transitions'])==options(cfg)['ecd_states'],'Incomplete/unexpected ECD state count')
     save(receipt, {'input_sha256': signature, 'output_sha256': digest(log), 'stage': stage})
     return result
 
@@ -374,6 +391,8 @@ def populations(records, cfg, directory):
 
 def run_candidate(candidate, cfg, run):
     from sampling import sample
+    from module_options import options
+    modules=options(cfg)
     source = Path(candidate['input']).resolve()
     require(source.exists(), 'Missing input '+str(source))
     run.mkdir(parents=True, exist_ok=True)
@@ -385,6 +404,19 @@ def run_candidate(candidate, cfg, run):
     save(state, {'identity': identity, 'status': 'running'})
     ensemble = source if source.suffix.lower() == '.xyz' else sample(source, cfg, run/'sampling')
     blocks = xyz_read(ensemble)
+    electrons = sum(ELEMENTS.index(a[0]) for a in blocks[0][1])-cfg['charge']
+    require(electrons >= cfg['multiplicity']-1 and (electrons-(cfg['multiplicity']-1)) % 2 == 0,
+            'Electron count incompatible with charge/multiplicity')
+    if modules['base']=='conformers' and modules['conformer_weight']=='gfn2_energy':
+        from conformer_exports import electronic_records
+        require(source.suffix.lower()!='.xyz' or cfg.get('input_energy_model')=='gfn2',
+                'Fast XYZ input requires explicit input_energy_model=gfn2; arbitrary energies cannot be labelled GFN2')
+        rows=electronic_records(blocks,cfg['shermo']['T'])
+        save(run/'conformers.json',{'candidate':candidate['id'],'config':cfg,'ensemble_total':len(blocks),
+             'dft_selected':0,'coverage_within_computed_ensemble':1.0,'records':rows,'nmr_ids':[],
+             'exclusions':[],'weight_model':'gfn2_electronic_energy'})
+        save(state,{'identity':identity,'status':'complete'})
+        return
     stereo = json.loads((run/'sampling/stereocenters.json').read_text()) if (run/'sampling/stereocenters.json').exists() else []
     limit = cfg['max_conformers']
     require(limit == 0 or limit > 0, 'Invalid conformer cap')
@@ -457,17 +489,32 @@ def run_candidate(candidate, cfg, run):
     for row in chosen:
         row['nmr_weight'] = row['weight']/covered
         row['nmr'] = {}
-        for method in cfg['methods']:
+        for method in (cfg['methods'] if modules['base']=='nmr' else []):
             directory = run/'conformers'/row['id']/('nmr'+method)
             quantum(ROOT/'resources'/('06_tem'+template_method(method,cfg)+'_nmr.gjf'), row['geometry'], cfg, directory, 'nmr')
-            row['nmr'][method] = str(directory/(artifact_stem(directory,cfg,'Gau','nmr')+'.log'))
+            row['nmr'][method] = str(directory/(artifact_stem(directory,cfg,'Gau',directory.name)+'.log'))
+        if modules['coupling']:
+            row['coupling']={}
+            for stage,template in [('coupling','08_coupling_fc.gjf'),('coupling_shielding','08_coupling_shielding.gjf')]:
+                directory=run/'conformers'/row['id']/stage
+                quantum(ROOT/'resources'/template,row['geometry'],cfg,directory,stage)
+                row['coupling'][stage]=str(directory/(artifact_stem(directory,cfg,'Gau',directory.name)+'.log'))
+        if modules['ecd']:
+            row['ecd']={}
+            for method in modules['ecd_methods']:
+                directory=run/'conformers'/row['id']/('ecd'+method)
+                quantum(ROOT/'resources'/('07_tem'+method+'_ecd.gjf'),row['geometry'],cfg,directory,'ecd')
+                row['ecd'][method]=str(directory/(artifact_stem(directory,cfg,'Gau',directory.name)+'.log'))
     save(run/'conformers.json', {'candidate': candidate['id'], 'config': cfg, 'ensemble_total': len(blocks),
          'dft_selected': len(selected), 'coverage_within_computed_ensemble': covered,
-         'records': records, 'nmr_ids': [r['id'] for r in chosen], 'exclusions': exclusions})
+         'records': records, 'nmr_ids': [r['id'] for r in chosen], 'exclusions': exclusions,
+         'weight_model':'orca_shermo_free_energy'})
     save(state, {'identity': identity, 'status': 'complete'})
 
 
 def validate_config(cfg):
+    from module_options import validate
+    validate(cfg)
     require(cfg.get('output_layout') in (None,'direct_v1'), 'Unknown output layout')
     require(all(isinstance(cfg[k],int) and not isinstance(cfg[k],bool)
                 for k in ['charge','multiplicity','cores','memory_gb','orca_maxcore_mb','max_conformers']),
@@ -481,7 +528,9 @@ def validate_config(cfg):
     require(len(set(cfg['methods'])) == len(cfg['methods']), 'Duplicate NMR method')
     require(cfg['charge'] == int(cfg['charge']) and cfg['multiplicity'] >= 1, 'Invalid charge/spin')
     require(cfg['solvent'] == 'chloroform', 'Current calibrated interfaces support chloroform; version other solvents explicitly')
-    require(cfg['shermo']['T'] > 0 and cfg['shermo']['P'] > 0,'Invalid thermochemistry state')
+    require(all(isinstance(cfg['shermo'][k],(int,float)) and not isinstance(cfg['shermo'][k],bool)
+                and math.isfinite(cfg['shermo'][k]) and cfg['shermo'][k]>0 for k in ('T','P')),
+            'Invalid thermochemistry state')
     require(cfg['candidates'], 'No candidates supplied')
     require(len(cfg['md_seeds']) == 3 and len(set(cfg['md_seeds'])) == 3
             and all(isinstance(v,int) and not isinstance(v,bool) and -2147483648 <= v <= 2147483647 and v != -1
@@ -524,20 +573,33 @@ def main():
                 'Direct layout requires a real project/过程文件 directory')
     validate_config(cfg)
     if args.action == 'check':
+        from module_options import options
+        modules=options(cfg)
+        quick=modules['base']=='conformers' and modules['conformer_weight']=='gfn2_energy'
+        pdb=any(not c['input'].lower().endswith('.xyz') for c in cfg['candidates'])
         for name, path in cfg['software'].items():
+            if quick and (not pdb or name in ('orca','openmpi','shermo')):continue
             resolved = path if Path(path).is_absolute() else shutil.which(path)
             require(resolved and Path(resolved).exists(), 'Missing {}: {}'.format(name,path))
             if name != 'openmpi':
                 require(os.access(resolved,os.X_OK), 'Software not executable: '+path)
         import numpy
         import openpyxl
+        if modules['ecd']:
+            import matplotlib
         for filename in ['03_tem1.gjf','03_tem2.gjf','03_tem3.gjf','04_tem.gjf','05_tem.inp',
                          '06_tem01_nmr.gjf','06_tem02_nmr.gjf','06_tem03_nmr.gjf','isostat','sobtop','atomtype','shermo_settings.ini']:
             require((ROOT/'resources'/filename).exists(), 'Missing workflow resource '+filename)
+        for filename in (['08_coupling_fc.gjf','08_coupling_shielding.gjf'] if modules['coupling'] else []) + (['07_tem'+m+'_ecd.gjf' for m in modules['ecd_methods']] if modules['ecd'] else []):
+            require((ROOT/'resources'/filename).exists(),'Missing module template '+filename)
         for c in cfg['candidates']:
             require(Path(c['input']).exists(), 'Missing input '+c['input'])
             if c['input'].lower().endswith('.xyz'):
-                select_ensemble(xyz_read(c['input']),cfg['max_conformers'])
+                blocks=xyz_read(c['input'])
+                if quick:
+                    require(cfg.get('input_energy_model')=='gfn2','Fast XYZ input requires explicit input_energy_model=gfn2')
+                    for comment,_ in blocks:ensemble_energy(comment)
+                select_ensemble(blocks,cfg['max_conformers'])
             else:
                 for filename in ['md01.mdp','md02.mdp','md03.mdp','sobtop.ini','mol2_xyz','xyz2QC','bonded_param.dat',
                                  'assign_AT.dat','ATOMTYPE_GFF.DEF','LJ_param.dat']:
@@ -568,8 +630,22 @@ def execute(action,cfg,output,config_dir):
                         'Node available memory is below application memory plus safety margin')
         for candidate in cfg['candidates']:
             run_candidate(candidate, cfg, output/candidate['id'])
-    from postprocess import export
-    export(cfg, output, config_dir)
+    from module_options import options
+    modules=options(cfg)
+    for c in cfg['candidates']:
+        state=output/c['id']/'state.json'
+        require(state.is_file() and json.loads(state.read_text())['status']=='complete','All candidates must be complete before postprocessing')
+    if modules['base']=='nmr':
+        from postprocess import export
+        export(cfg, output, config_dir)
+    from conformer_exports import export_all
+    export_all(cfg,output)
+    if modules['coupling']:
+        from coupling import export_all as export_coupling
+        export_coupling(cfg,output,config_dir)
+    if modules['ecd']:
+        from ecd import export_all as export_ecd
+        export_ecd(cfg,output,config_dir)
 
 
 if __name__ == '__main__':
