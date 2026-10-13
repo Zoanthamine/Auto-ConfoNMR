@@ -4,22 +4,20 @@
 
 ```mermaid
 flowchart TD
-  A[PDB候选和中文配置] --> B[RESP2与MD采样]
-  B --> C[GFN1/GFN2优化聚类]
-  C --> D{基础与布居模式}
-  D -->|单独构象/快速| E[GFN2电子能Boltzmann估算]
-  E --> X[前N坐标/全集及子集比例/覆盖]
-  D -->|精修| F[DFT优化/去重/正频率]
-  F --> G[ORCA单点+Shermo热校正]
-  G --> H[自由能布居]
-  H --> X
-  H --> I{选择性质模块}
-  I -->|基础0| J[原三套NMR/DP4+/STS]
-  I -->|附加2| K[独立FC耦合与气相屏蔽]
-  I -->|附加3| L[三套TDDFT/ECD]
-  K --> M[H-H矩阵与dJ输入表]
-  M --> N[显式实验归属/可选探索概率]
-  L --> O[逐态数据/展宽/构象加权/原始图]
+A("PDB 输入") --> B("两相 RESP 混合与 Sobtop 拓扑")
+  B --> C("三套退火 MD 与轨迹提取")
+  C --> D("GFN1 / GFN2 优化聚类")
+  D -->|快速构象| E("电子能权重与前 N 导出")
+  D -->|精修模式| F("DFT 优化、去重、正频率")
+  F --> G("ORCA 单点与 Shermo<br/>自由能布居")
+  G --> H("前 N 坐标及全集布居")
+  G --> I("按累计布居选择性质集合<br/>并重新归一化")
+  I --> J("所选 NMR / J / ECD")
+  J --> K("自动原始导出")
+  K --> L("03 实验比较或重新导出")
+  classDef step fill:#e8f2ff,stroke:#d5dee8,stroke-width:1px,color:#1456a3,rx:16,ry:16;
+  class A,B,C,D,E,F,G,H,I,J,K,L step;
+  linkStyle default stroke:#9ca3af,stroke-width:1px;
 ```
 
 共享的是优化后的同一批构象和已审核布居；NMR、J和ECD分别有自己的计算输入、阶段目录、receipt和导出目录。不同候选之间不做构象混合。

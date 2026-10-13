@@ -1,5 +1,7 @@
 # Auto ConfoNMR
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 自动化构象加权核磁计算与候选结构评估 · **V2.1**
 
 Auto ConfoNMR 从三维候选结构出发，完成构象搜索、几何优化、频率分析、单点能和构象加权 NMR 计算，并根据实验归属进行 DP4+/STS 比较。V2.1 保留 V1.2 的多样品比较和四个日常脚本，增加单独构象搜索、H–H 耦合常数及 ECD 模块。适用于 Linux 集群，目前提供 PBS 单节点提交方式。
@@ -17,6 +19,21 @@ Auto ConfoNMR 从三维候选结构出发，完成构象搜索、几何优化、
 
 ## 选择计算内容
 
+```mermaid
+flowchart TD
+A("建立项目：选择基础模块") --> B("基础 0：NMR<br/>自由能布居＋三套屏蔽")
+  A --> C("基础 1：单独构象")
+  C --> D("快速档<br/>GFN2 电子能布居")
+  C --> E("严谨档<br/>DFT＋ORCA＋Shermo 自由能布居")
+  D --> F("导出前 N 个构象与比例")
+  E --> F
+  B --> G("可选增加 J、ECD<br/>两项分别开关")
+  E --> G
+  classDef step fill:#e8f2ff,stroke:#d5dee8,stroke-width:1px,color:#1456a3,rx:16,ry:16;
+  class A,B,C,D,E,F,G step;
+  linkStyle default stroke:#9ca3af,stroke-width:1px;
+```
+
 |建项选项|计算内容|主要结果|
 |---|---|---|
 |基础 `0`：NMR，默认|搜索、DFT 精修、自由能布居、三套屏蔽|加权屏蔽、构象坐标与比例；填写实验表后生成 DP4+/STS 比较|
@@ -30,6 +47,20 @@ Auto ConfoNMR 从三维候选结构出发，完成构象搜索、几何优化、
 快速与严谨档的退火搜索时长相同；快速档省去后续 DFT、频率、ORCA 和 Shermo。导出前几个构象由 `top_n` 控制，送入 DFT 的数量由 `max_conformers` 控制，两个设置分别生效。
 
 ## 日常使用
+
+```mermaid
+flowchart TD
+A("完整 PDB＋已配置的软件环境") --> B("00_new_project.sh<br/>选择模块，建立项目")
+  B --> C("核对 project.ini<br/>电荷、计算条件、构象数和资源")
+  C --> D("01_submit.sh<br/>检查配置并提交")
+  D --> E("02_status.sh<br/>查看队列、阶段和软件日志")
+  E --> F("全部候选计算完成")
+  F --> G("03_compare.sh<br/>比较实验数据或重新导出")
+  G --> H("04_collect.sh<br/>集中保存和下载")
+  classDef step fill:#e8f2ff,stroke:#d5dee8,stroke-width:1px,color:#1456a3,rx:16,ry:16;
+  class A,B,C,D,E,F,G,H step;
+  linkStyle default stroke:#9ca3af,stroke-width:1px;
+```
 
 ### 1. 准备结构并建立项目
 
@@ -144,6 +175,20 @@ bash 04_collect.sh
 
 每样品查看 `comparison_results.json`、三份工作簿、`信号误差.csv` 和 `数据与结果复核.md`。Excel 工作簿打开后重算公式；信号误差是当前数据拟合后的残差。DP4+ 至少两个候选，概率反映所提供候选间的比较。
 
+```mermaid
+flowchart TD
+A("加权屏蔽与原子编号对照") --> D("核对信号、原子号与分类")
+  B("experiment_A.csv<br/>样品 A 实验位移") --> D
+  C("assignments_A.csv<br/>各候选的显式原子归属") --> D
+  D --> E("03_compare.sh --check-only<br/>保存数据检查记录")
+  E --> F("03_compare.sh<br/>按样品分别比较")
+  F --> G("NMR 01、02：各自 DP4+<br/>NMR 03：STS，仅碳数据")
+  G --> H("每样品独立结果<br/>工作簿、概率、误差与输入快照")
+  classDef step fill:#e8f2ff,stroke:#d5dee8,stroke-width:1px,color:#1456a3,rx:16,ry:16;
+  class A,B,C,D,E,F,G,H step;
+  linkStyle default stroke:#9ca3af,stroke-width:1px;
+```
+
 多样品文件匹配和结果目录见 [MULTISAMPLE.md](docs/MULTISAMPLE.md)。
 
 ### 5. 使用 J 模块的结果
@@ -206,6 +251,24 @@ bash 04_collect.sh
 
 ## 计算流程与参数
 
+```mermaid
+flowchart TD
+A("PDB 输入") --> B("两相 RESP 混合与 Sobtop 拓扑")
+  B --> C("三套退火 MD 与轨迹提取")
+  C --> D("GFN1 / GFN2 优化聚类")
+  D -->|快速构象| E("电子能权重与前 N 导出")
+  D -->|精修模式| F("DFT 优化、去重、正频率")
+  F --> G("ORCA 单点与 Shermo<br/>自由能布居")
+  G --> H("前 N 坐标及全集布居")
+  G --> I("按累计布居选择性质集合<br/>并重新归一化")
+  I --> J("所选 NMR / J / ECD")
+  J --> K("自动原始导出")
+  K --> L("03 实验比较或重新导出")
+  classDef step fill:#e8f2ff,stroke:#d5dee8,stroke-width:1px,color:#1456a3,rx:16,ry:16;
+  class A,B,C,D,E,F,G,H,I,J,K,L step;
+  linkStyle default stroke:#9ca3af,stroke-width:1px;
+```
+
 PDB → 两相 RESP 混合电荷 → Sobtop 拓扑 → 三套退火 MD → VMD 提取 → GFN1/GFN2 优化聚类。快速档到这里计算电子能布居；精修档继续 DFT 优化、去重、频率、ORCA 和 Shermo，再运行所选性质。
 
 三套 MD 各 200 ps，最高温度分别为 1000、1500、2000 K，并完整降温；从最后成功完整轨迹按 md03→md02→md01 的顺序选择。GFN 使用 CREST `-mdopt` 精修已有构象。电荷采用旧流程的两相 RESP 混合，气相/水 B3LYP/6-31G MK，delta=0.5。
@@ -235,16 +298,30 @@ Sobtop 缺少扭转参数时可能将该项势垒置零，缺少 improper 时可
 
 ## 迁移配置
 
+```mermaid
+flowchart TD
+A("本站软件路径、module、PBS 队列") --> B("config/cluster.json<br/>首次配置或迁移时修改")
+  B --> C("检查配置并运行 00 建项")
+  C --> D("独立项目的 project.ini<br/>每次计算的条件与模块")
+  D --> E("01 提交：固定本次配置与程序")
+  F("实验位移与原子归属 CSV") --> G("计算完成后运行 03")
+  E --> G
+  classDef step fill:#e8f2ff,stroke:#d5dee8,stroke-width:1px,color:#1456a3,rx:16,ry:16;
+  class A,B,C,D,E,F,G step;
+  linkStyle default stroke:#9ca3af,stroke-width:1px;
+```
+
 ### 1. 下载并准备环境
 
-运行包和克隆仓库任选一种。克隆固定版本：
+运行包和克隆仓库任选一种。克隆当前版本（含最新说明和 MIT 许可证）：
 
 ```bash
 git clone https://github.com/Zoanthamine/Auto-ConfoNMR.git Auto_ConfoNMR
 cd Auto_ConfoNMR
-git checkout V2.1
 cp config/cluster.example.json config/cluster.json
 ```
+
+V2.1 标签保留首次发布快照；后续文档和许可更新见 main 分支与当前下载包。
 
 随附辅助程序适用于 Linux x86-64。Gaussian/formchk、ORCA/匹配 OpenMPI、GROMACS、VMD、Open Babel、Python 和 PBS 仍需自行配置。Python 安装 `requirements.txt`，启用 ECD 再安装 `requirements-ecd.txt`。计算节点需能访问程序和项目目录。
 
@@ -320,4 +397,4 @@ cd ..
 - 工作簿接口与统计参数参考 [EasyCalcNMR](https://github.com/chemicalchange/EasyCalcNMR_for_OrgSynLab/tree/095dbc16db04b40371edfaa61a03aa581e5c7d93)，来源和哈希保存在校准文件中。
 - 相关讨论：[计算化学公社帖子 41199](http://bbs.keinsci.com/forum.php?mod=viewthread&tid=41199&page=1&extra=#pid270367)。完整文献及软件引用见 [REFERENCES.md](docs/REFERENCES.md)。
 
-Auto ConfoNMR 暂未附带开源许可证。随附辅助程序、参数和工作簿保留原作者许可及引用要求，详见 [资源说明](confonmr-resources/README.md)和 [LICENSE_NOTICE.md](LICENSE_NOTICE.md)。Gaussian、ORCA 等完整安装需另行准备；私有集群配置、凭据和实际研究数据不随包发布。
+Auto ConfoNMR 自编代码、文档和输入模板采用 [MIT License](LICENSE)。随附辅助程序、参数、工作簿及上游数据保留各自的许可和引用要求，详见 [资源说明](confonmr-resources/README.md)和 [LICENSE_NOTICE.md](LICENSE_NOTICE.md)。Gaussian、ORCA 等完整安装需另行准备；私有集群配置、凭据和实际研究数据不随包发布。
