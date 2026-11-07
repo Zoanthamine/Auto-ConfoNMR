@@ -1,9 +1,10 @@
 %mem=60GB
 %nprocshared=16
-#p B3LYP/6-31G(d,p) NMR(FConly) G09Defaults SCF=NoInCore
+#p B3LYP/Gen 6D NMR=(FCOnly) Int=NoBasisTransform G09Defaults
 
-ConfoNMR separate dJ FC-only branch; gas phase; custom DFT geometry
+ConfoNMR general H-H branch: Bally-Rablen H-only u+1s basis, FC-only, gas phase, custom DFT geometry
 
 0 1
 [GEOMETRY]
 
+[BASIS]

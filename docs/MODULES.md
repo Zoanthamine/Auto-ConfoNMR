@@ -109,3 +109,26 @@ ECD默认保留旧流程参数：
 dJ读取 `[对比] experiment` 和 `assignments` 指定的一组位移表，默认 `experiment.csv`、`assignments.csv`；另读取模块后处理指定的 J 表。不自动循环采用全部 `experiment_样品名.csv`。如果只准备了多样品表，须明确指定其中一组供J使用；J/ECD与NMR批次独立。相对dJ概率至少两个候选，单候选仍可输出原始J矩阵和标度参考页。
 
 长候选名工作表使用确定性摘要后缀，完整身份保留在来源元数据中；短名称保持可读。两张标度页都从原始矩阵独立生成，不能把其中一页作为另一页输入。
+
+## 7. 耦合模块 V2.2：两条独立分支
+
+V2.2 起，`coupling = true` 会为每个代表构象跑**两组** FC-only 作业，分别对应两套文献方法：
+
+| 分支 | 作业 | 基组 | 用途 | 标度 |
+|---|---|---|---|---|
+| 常规 H–H | `08_coupling_fc.gjf` | B3LYP/Gen：C/O 6-31G(d,p) + H u+1s | 全部 H–H 对 | `J = 0.9155 × FC`（Bally–Rablen 2011） |
+| 同碳 CH2 | `08_coupling_du4.gjf` | B3LYP/Gen：C 4-31G、O 6-31G、H 8s1p | 仅 CH2 的 ²J_HH | 按 CH2 环境取斜率/截距（Kutateladze–Mukhina 2014） |
+
+DU4 环境分类（`coupling_methods.classify_ch2`，逐构象记录到 `CH2_geminal_DU4.csv`）：
+
+| 类别 | 判据 | 公式 |
+|---|---|---|
+| sp3_general | 普通 sp3 CH2（含 5 元及以上环） | 1.240 fc + 0.57 |
+| sp3_adjacent_sp2 | CH2 邻接 sp2 碳/氧 | 1.072 fc − 1.66 |
+| small_ring | 3/4 元环 CH2（DU4 无此拟合） | 借用 sp3_general 并标 `extrapolative=true` |
+| sp2 | sp2 CH2 | 1.337 fc + 0.52 |
+
+- 两套结果**分别标度、分别加权、从不合并**；同一 H–H 对不会同时用两种方法。
+- 两分支均沿用气相 B3LYP/6-31G(d) 几何与 Shermo 布居，属自定义条件，导出时保留 `exploratory` 标记。
+- 文献资产仅含 C/H/O；其他元素（如 Si）按 `coupling_methods.FALLBACK_BASIS` 借用并记录（Bally: Si 6-31G(d)；DU4: Si 4-31G），属外推。
+- 与 V2.1 的差异：常规分支由普通 6-31G(d,p) 改为 Bally 的 H-only u+1s Gen 基组，数值会变；旧项目仍用各自冻结快照。

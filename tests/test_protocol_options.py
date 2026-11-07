@@ -61,6 +61,22 @@ class ProtocolChecks(unittest.TestCase):
         self.assertEqual(nmr_text(historic,cfg),historic)
         self.assertEqual(cluster_options(cfg,'GFN2'),['-Edis',.2,'-Gdis',.1,'-T',350])
 
+    def test_gfn_coarse_preserves_dft_and_six_conformer_budget(self):
+        cfg=self.cfg();cfg['max_conformers']=6
+        apply_choices(cfg,clustering_profile='fine')
+        original=json.loads(json.dumps(cfg))
+        apply_choices(cfg,clustering_profile='gfn_coarse')
+        nf.validate_config(cfg)
+        self.assertEqual(cfg['max_conformers'],6)
+        self.assertEqual(cfg['shermo'],original['shermo'])
+        self.assertEqual(cfg['clustering']['DFT'],original['clustering']['DFT'])
+        for stage,expected in [('GFN1',(.5,.5)),('GFN2',(.3,.2))]:
+            self.assertEqual(tuple(cfg['clustering'][stage][k] for k in ['Edis','Gdis']),expected)
+            for key in ['T','Nout','Eout']:
+                self.assertEqual(cfg['clustering'][stage][key],original['clustering'][stage][key])
+        from protocol_options import CLUSTERS
+        self.assertEqual(CLUSTERS['fine']['GFN1']['Gdis'],.2)
+
     def test_ini_choices_change_before_run_but_block_after_run(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);cfg=self.cfg();cfg.update(output='raw',candidates=[{'id':'A','input':'inputs/A.pdb'}])

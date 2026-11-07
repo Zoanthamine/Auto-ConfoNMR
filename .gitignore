@@ -1,6 +1,10 @@
 # Local installations and unpublished validation records
 config/cluster.json
 .site-resources/
+.venv/
+.pytest_cache/
+pytest-cache-files-*/
+.validation-wheels/
 .history/
 /upstream/
 __pycache__/

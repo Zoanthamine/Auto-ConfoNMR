@@ -1,3 +1,17 @@
+## V2.2 耦合双轨与兼容性更新 · 2026-11-05
+
+- 一般 H–H 改为真实 Bally–Rablen 协议：`08_coupling_fc.gjf` 用 B3LYP/Gen，H 为 u+1s（8s1p）、非氢元素为作者脚本默认 6-31G(d,p)，FC-only、`Int=NoBasisTransform`，整表乘有符号 0.9155；此前用普通 6-31G(d,p) 近似。
+- 新增 `08_coupling_du4.gjf`：B3LYP/Gen，C 4-31G、O 6-31G、H 8s1p，只用于 CH2 同碳 ²JHH；四类环境式在后处理选类并记录，不与 Bally 页平均。
+- 新增 `coupling_methods.py`，集中保存路线、两套基组、DU4 类别与 CH2 环境提示；元素超出 C/H/O 时给出记录在案的回退基组（Si 等），未知元素报错。
+- 导出新增 `CH2_geminal_DU4.csv` 与 `coupling_protocol.json`；原有一般 H–H 矩阵与工作簿结构不变。
+- 新增 `iodine_compat.py`：I 用 def2-SVP/ECP 参与几何与频率、全电子 DGDZVP 参与旧 NMR 分支；该方案只做基组兼容，不含自旋–轨道效应，且自动统计暂停。
+- 轨迹阶段新增 VMD XYZ 元素名归一化：按 GRO 原子名与索引核对后重写元素列，坐标 token 不变，原始轨迹保留。
+- 新增 `workflow_log.py`，在项目里生成可读的“总流程日志”，`计算总览.html` 增加入口。
+- Gaussian 输入统一以 UTF-8/LF 写入，保证收据哈希在 Windows 与 Linux 上一致。
+- 构象聚类新增 `gfn_coarse` 混合档：只放松 GFN 去重，DFT 阈值、isostat 显示温度、能量窗口、导出数量和热化学保持不变。
+- 新增 `test_iodine_compat.py`、`test_vmd_atom_mapping.py`、`test_workflow_log.py`，并同步更新 nmrflow/protocol 相关回归测试。
+- 既有项目继续使用各自冻结的快照；只有 V2.2 新建项目走新耦合与兼容路径。
+
 ## V2.1 文档与许可更新 · 2026-10-14
 
 - 自编代码、文档和输入模板采用 MIT License；第三方资源保留各自许可。

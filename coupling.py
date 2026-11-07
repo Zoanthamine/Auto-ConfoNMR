@@ -195,6 +195,80 @@ def probabilities(data):
     return {g:normalize({c:v[g] for c,v in likelihoods.items()}) for g in sorted(groups)},details
 
 
+def export_ch2_du4(cfg, output, pending):
+    """Raw DU4-basis FC for every CH2, plus a scaling worksheet.
+
+    No environment class is applied automatically: the worksheet lists all four DU4
+    formulas with the J they would give, so the choice is made -- and recorded -- during
+    post-processing (analyst or assistant) instead of being silently decided here.
+    """
+    import csv as _csv
+    from coupling_methods import describe_ch2, typed_graph, DU4_CLASSES, describe
+    from nmrflow import gaussian_read
+    raw, sheet, summary = [], [], {}
+    for candidate in cfg['candidates']:
+        cid = candidate['id']
+        manifest = json.loads((output / cid / 'conformers.json').read_text())
+        chosen = [r for r in manifest['records'] if r['id'] in manifest['nmr_ids']]
+        mol2 = output / cid / 'sampling' / 'molecule.mol2'
+        if not mol2.is_file():
+            print('DU4 branch: no molecule.mol2 for ' + cid + '; skipped', flush=True)
+            continue
+        graph, order = typed_graph(mol2)
+        pairs = describe_ch2(graph, order, chosen[0]['geometry'])
+        summary[cid] = pairs
+        fcmat = {}
+        for row in chosen:
+            stage_log = row.get('coupling', {}).get('coupling_du4')
+            if not stage_log:
+                continue
+            fcmat[row['id']] = (gaussian_read(Path(stage_log), 'coupling_du4')['fc_hz'],
+                                row['nmr_weight'])
+        for entry in pairs:
+            key = pair_key(entry['H_a'], entry['H_b'])
+            wsum = fcsum = 0.0
+            for cfid, (mat, weight) in sorted(fcmat.items()):
+                fc = mat.get(key)
+                if fc is None:
+                    continue
+                wsum += weight
+                fcsum += weight * fc
+                raw.append(dict(candidate=cid, conformer=cfid,
+                                carbon_atom=entry['carbon_atom'],
+                                H_a=entry['H_a'], H_b=entry['H_b'],
+                                FC_hz=fc, weight=weight))
+            if wsum <= 0:
+                continue
+            fc_w = fcsum / wsum
+            row = dict(candidate=cid, carbon_atom=entry['carbon_atom'],
+                       H_a=entry['H_a'], H_b=entry['H_b'],
+                       ring_sizes=entry['ring_sizes'],
+                       adjacent_sp2_atoms=entry['adjacent_sp2_atoms'],
+                       FC_weighted_hz=fc_w,
+                       suggested_class=entry['suggested_class'],
+                       suggestion_note=entry['suggestion_note'])
+            for cls in DU4_CLASSES:
+                fit = DU4_CLASSES[cls]
+                row['J_' + cls + '_hz'] = fit['slope'] * fc_w + fit['intercept_hz']
+            row['chosen_class'] = ''
+            row['chosen_J_hz'] = ''
+            row['decision_note'] = ''
+            sheet.append(row)
+    if raw:
+        with (pending / 'CH2_geminal_FC_raw.csv').open('w', encoding='utf-8-sig', newline='') as f:
+            w = _csv.DictWriter(f, fieldnames=list(raw[0]))
+            w.writeheader()
+            w.writerows(raw)
+    if sheet:
+        with (pending / 'CH2_scaling_worksheet.csv').open('w', encoding='utf-8-sig', newline='') as f:
+            w = _csv.DictWriter(f, fieldnames=list(sheet[0]))
+            w.writeheader()
+            w.writerows(sheet)
+    with (pending / 'coupling_protocol.json').open('w', encoding='utf-8') as f:
+        json.dump(dict(protocol=describe(), CH2_inventory=summary), f, indent=2, ensure_ascii=False)
+    return sheet
+
+
 def export_all(cfg,output,config_dir):
     from nmrflow import require,save,digest,gaussian_read,rms,calculation_config
     from postprocess import write_csv,table
@@ -211,7 +285,7 @@ def export_all(cfg,output,config_dir):
         matrices[cid]={};shifts[cid]={};geometries[cid]=chosen[0]['geometry']
         for row in chosen:
             parsed={}
-            for stage in ('coupling','coupling_shielding'):
+            for stage in tuple(s for s in ('coupling','coupling_du4','coupling_shielding') if s in row['coupling']):
                 log=Path(row['coupling'][stage]);receipt=json.loads((log.parent/'receipt.json').read_text())
                 require(receipt['output_sha256']==digest(log) and receipt['input_sha256']==digest(log.with_suffix('.gjf')) and receipt['stage']==stage,'J receipt/input/output hash mismatch')
                 parsed[stage]=gaussian_read(log,stage)
@@ -229,6 +303,7 @@ def export_all(cfg,output,config_dir):
         with (pending/(cid+'_J_result.csv')).open('w',encoding='utf-8-sig',newline='') as f:
             w=csv.writer(f);w.writerow(['H atom']+h)
             for a in h:w.writerow([a]+['X' if a==b else matrices[cid][pair_key(a,b)] for b in h])
+    du4_rows = export_ch2_du4(cfg, output, pending)
     require(raw,'No H-H pairs available for coupling export')
     write_csv(pending/'per_conformer_J.csv',list(raw[0]),raw)
     write_csv(pending/'weights.csv',list(weights[0]),weights)

@@ -93,6 +93,8 @@ def resp2(mol2, cfg, work):
         stem = 'Gau_RESP_{}_{}'.format(phase,work.parent.name) if cfg.get('output_layout')=='direct_v1' else 'gau'
         inp = ('%mem={}GB\n%nprocshared={}\n%chk='+stem+'.chk\n{}\n\nRESP2 {}\n\n{} {}\n{}\n\n').format(
             cfg['memory_gb'], cfg['cores'], route, phase, cfg['charge'], cfg['multiplicity'], geometry_text(geom))
+        from iodine_compat import render as iodine_input
+        inp = iodine_input(inp,[atom[0] for atom in geom],cfg,'resp')
         (directory/(stem+'.gjf')).write_text(inp)
         env = os.environ.copy()
         env['NMR_DETAIL_LOG'] = '0'
@@ -119,6 +121,40 @@ def resp2(mol2, cfg, work):
          'protocol':'legacy-level two-phase RESP mixing; not the published RESP2 electronic-structure protocol',
          'level': 'B3LYP/6-31g', 'gas': values['gas'], 'solvent_charges': values['solvent'], 'mixed': charges})
     return geom
+
+
+def normalize_vmd_xyz(raw, geom, gro):
+    """Map GRO atom names to verified elements by index; retain raw coordinate tokens."""
+    raw,gro=Path(raw),Path(gro)
+    try:
+        blocks=xyz_read(raw)
+        if [a[0] for a in blocks[0][1]]==[a[0] for a in geom]:return raw
+    except ValueError:
+        pass
+    rows=gro.read_text().splitlines()
+    require(int(rows[1])==len(geom),'GRO atom mapping count mismatch')
+    names=[s[10:15].strip() for s in rows[2:2+len(geom)]]
+    lines=raw.read_text().splitlines();result=[];i=0;frames=0
+    while i<len(lines):
+        if not lines[i].strip():i+=1;continue
+        n=int(lines[i]);require(n==len(geom) and i+n+2<=len(lines),'Invalid/truncated VMD XYZ')
+        result.extend(lines[i:i+2])
+        for index,line in enumerate(lines[i+2:i+n+2]):
+            fields=line.split();el=geom[index][0]
+            require(len(fields)==4 and fields[0] in (names[index],el),'VMD/GRO atom mapping mismatch at index '+str(index+1))
+            require(all(math.isfinite(float(v)) for v in fields[1:]),'Invalid VMD coordinate')
+            result.append(' '.join([el]+fields[1:]))
+        frames+=1;i+=n+2
+    require(frames>0,'Empty VMD XYZ')
+    target=raw.with_name(raw.stem+'_elements.xyz')
+    text='\n'.join(result)+'\n'
+    if target.exists():require(target.read_text()==text,'Normalized trajectory changed')
+    else:target.write_text(text)
+    xyz_read(target)
+    save(raw.with_name(raw.stem+'_element_map.json'),{'raw_sha256':digest(raw),'gro_sha256':digest(gro),
+         'normalized_sha256':digest(target),'frames':frames,'atoms':len(geom),
+         'policy':'Explicit GRO-name/index to input element mapping; coordinate tokens unchanged; raw preserved'})
+    return target
 
 
 def sample(source, cfg, work):
@@ -196,10 +232,19 @@ def sample(source, cfg, work):
     env = os.environ.copy()
     env['VMDDIR'] = str(Path(sw['vmd']).parent)
     command([sw['vmd'],'-dispdev','text','-startup','empty.vmdrc','-e','extract.tcl'],work,work/'vmd.log',env=env)
-    trajectory = xyz_read(work/'trajectory.xyz')
+    normalized=normalize_vmd_xyz(work/'trajectory.xyz',geom,work/(preferred+'.gro'))
+    return refine_trajectory(source,cfg,work,geom,stereo,complete,failures,topology_warnings,normalized)
+
+
+def refine_trajectory(source,cfg,work,geom,stereo,complete,failures,topology_warnings,trajectory_path):
+    """Shared post-MD entry, also used for verified recovery without repeating MD."""
+    require(bool(os.environ.get('PBS_JOBID')) or cfg.get('allow_local_compute') is True,'GFN refinement requires a compute allocation')
+    require(complete,'No verified completed MD trajectory')
+    preferred=complete[-1];resources=ROOT/'resources';sw=cfg['software'];final=work/'gfn2.xyz';receipt=work/'receipt.json'
+    trajectory = xyz_read(trajectory_path)
     require([a[0] for a in trajectory[0][1]] == [a[0] for a in geom], 'VMD changed atom order')
     from protocol_options import cluster_options
-    previous = work/'trajectory.xyz'
+    previous = trajectory_path
     stereo_rejected = {}
     if stereo:
         trajectory,rejected = filter_stereochemistry(trajectory,stereo)

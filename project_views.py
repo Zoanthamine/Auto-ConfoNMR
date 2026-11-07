@@ -213,11 +213,13 @@ def collect(project,copy_logs=False):
              [[r['id'],r['current'],r['optimized'],r['single_points'],
                ' / '.join(k+'='+str(v) for k,v in r['properties'].items()),r['log_modified'] or '尚无记录']
               for r in live['candidates']])
-    page+='<p><a href="实时进度.html">02入口最近一次读取的详细进度快照</a></p>'
+    page+='<p><a href="实时进度.html">02入口最近一次读取的详细进度快照</a> · <a href="运行日志/总流程.log">总流程日志（动力学、聚类、能量分布）</a></p>'
     page+='<h2>构象混合比例</h2><p>每候选内部混合；快速模式使用GFN2电子能E，精修模式使用ORCA/Shermo自由能G。覆盖率只针对已采样或已精修集合，不代表整个构象空间。导出前N个的比例详见附加模块/conformers。</p>'+ht(['结构','构象','ΔE或ΔG kcal/mol','原始/%','性质混合/%','选中'],[[*r[:2],f'{r[2]:.5f}',f'{r[3]:.6f}',f'{r[4]:.6f}' if r[4]!='' else '未运行性质',r[5]] for r in weights])
     page+='<p><a href="文件索引.csv">完整文件索引</a> · <a href="构象分布与混合比例.csv">权重CSV</a></p><details><summary>展开各软件输入、输出和构型文件</summary><ul>'+links+'</ul></details>'
     page+='<p>力场警告请检查04_采样与软件日志中的topology_quality.json；正常结束与有限预算覆盖率不能证明采样充分。</p></html>'
     atomic_text(project/'计算总览.html',page)
+    from workflow_log import build as build_workflow_log
+    build_workflow_log(project,cfg,out,live)
     return {'files':len(index),'candidates':summary,'project':str(project)}
 
 

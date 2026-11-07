@@ -2,11 +2,11 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-自动化构象加权核磁计算与候选结构评估 · **V2.1**
+自动化构象加权核磁计算与候选结构评估 · **V2.2**
 
-Auto ConfoNMR 从三维候选结构出发，完成构象搜索、几何优化、频率分析、单点能和构象加权 NMR 计算，并根据实验归属进行 DP4+/STS 比较。V2.1 保留 V1.2 的多样品比较和四个日常脚本，增加单独构象搜索、H–H 耦合常数及 ECD 模块。适用于 Linux 集群，目前提供 PBS 单节点提交方式。
+Auto ConfoNMR 从三维候选结构出发，完成构象搜索、几何优化、频率分析、单点能和构象加权 NMR 计算，并根据实验归属进行 DP4+/STS 比较。V2.2 保留 V2.1 的多样品比较、单独构象搜索、耦合与 ECD 模块，把 H–H 耦合改为双轨（Bally 一般项 + DU4 同碳项），并新增含碘基组兼容、VMD 轨迹元素归一化和总流程日志。适用于 Linux 集群，目前提供 PBS 单节点提交方式。
 
-日常使用下载 [V2.1 运行包](https://github.com/Zoanthamine/Auto-ConfoNMR/releases/download/V2.1/Auto_ConfoNMR_V2.1_runtime.zip)，解压后按后文配置。也可以克隆本仓库。两种方式都包含辅助程序、配套参数和 DP4+/STS 工作簿；Gaussian、ORCA 等完整软件环境需另行准备。
+日常使用下载 [V2.1 运行包](https://github.com/Zoanthamine/Auto-ConfoNMR/releases/download/V2.1/Auto_ConfoNMR_V2.1_runtime.zip)，解压后按后文配置；main 分支已到 V2.2，V2.2 运行包发布前请直接用 `git clone` 获取当前代码。也可以克隆本仓库。两种方式都包含辅助程序、配套参数和 DP4+/STS 工作簿；Gaussian、ORCA 等完整软件环境需另行准备。
 
 |下载文件|用途|内容|
 |---|---|---|
@@ -193,15 +193,20 @@ A("加权屏蔽与原子编号对照") --> D("核对信号、原子号与分类"
 
 ### 5. 使用 J 模块的结果
 
-启用 J 后，脚本另算气相 B3LYP/6-31G(d,p) 的 FC-only 耦合和 GIAO 屏蔽，带 G09Defaults。每个候选输出原始 H–H 矩阵、逐构象 J、权重及 `dJ_DP4_tables.xlsx`。没有实验数据时也可查看这些结果。
+启用 J 后，V2.2 分两轨计算，两轨数值不取平均：
+
+- 一般 H–H：气相 B3LYP/Gen，H 用 Bally–Rablen 的 u+1s（8s1p）基组、非氢元素用作者脚本默认 6-31G(d,p)，FC-only、`Int=NoBasisTransform`，整表乘有符号 `0.9155`。
+- CH2 同碳 ²JHH：同一路线换 DU4 基组（C 4-31G、O 6-31G、H 8s1p），按原文 SI S4 的环境分类（`sp3_general` / `sp3_adjacent_sp2` / `small_ring` / `sp2`）在**后处理**选类并记录理由，运行时不自动选类。
+
+每个候选输出原始 H–H 矩阵、逐构象 J、权重、`CH2_geminal_DU4.csv`、`coupling_protocol.json` 及 `dJ_DP4_tables.xlsx`。没有实验数据时也可查看这些结果。
 
 |工作表|内容|
 |---|---|
 |`J_<候选>`|加权原始 FC J，Hz，保留正负号|
 |`经验标度_<候选>`|整页非对角元 `(J_raw+0.1405)/0.9509`；该校准用于 ³JHH，²J和长程项需自行区分|
-|`Bally参考_<候选>`|原始值独立乘 `0.9155`；系数来源为 H-only 去收缩/紧 s 基组协议，普通基组上仅供参考|
+|`Bally参考_<候选>`|原始值独立乘 `0.9155`；V2.2 起该页对应真实计算的 Bally 基组，不再是普通 6-31G(d,p) 的近似|
 
-两张参考页分别从原始矩阵生成。当前计算使用普通 6-31G(d,p)，没有加入 `+1s`。工作簿页首写明公式和适用条件，原始 CSV 保持原始数值。
+CH2 同碳项请取 `CH2_geminal_DU4.csv` 或工作表中的四类候选值，选类理由写在同一工作表；不要与 Bally 参考页取平均。细节见 [COUPLING_SCALING_GUIDE.md](docs/COUPLING_SCALING_GUIDE.md)。
 
 需要 dJ-DP4 探索比较时，准备一组 C/H 位移表和两张 J 表：
 
@@ -321,7 +326,7 @@ cd Auto_ConfoNMR
 cp config/cluster.example.json config/cluster.json
 ```
 
-V2.1 标签保留首次发布快照；后续文档和许可更新见 main 分支与当前下载包。
+V2.1 标签保留首次发布快照；V2.2 标签对应双轨耦合版本，后续文档更新见 main 分支与当前下载包。
 
 随附辅助程序适用于 Linux x86-64。Gaussian/formchk、ORCA/匹配 OpenMPI、GROMACS、VMD、Open Babel、Python 和 PBS 仍需自行配置。Python 安装 `requirements.txt`，启用 ECD 再安装 `requirements-ecd.txt`。计算节点需能访问程序和项目目录。
 

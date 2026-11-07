@@ -76,7 +76,7 @@ class ScientificTests(unittest.TestCase):
                     Path(log).write_text('CREST terminated normally.')
                     (cwd/'crest_ensemble.xyz').write_bytes(Path(argv[2]).read_bytes())
                 elif argv[0].endswith('isostat'): (cwd/'cluster.xyz').write_bytes((cwd/argv[1]).read_bytes())
-            with patch.object(sp,'ROOT',nf.ROOT),patch.object(sp,'command',side_effect=fake),patch.object(sp,'resp2',return_value=geom):
+            with patch.object(sp,'ROOT',nf.ROOT),patch.object(sp,'command',side_effect=fake),patch.object(sp,'resp2',return_value=geom),patch.dict(os.environ,{'PBS_JOBID':'unit-test'}):
                 final=sp.sample(source,cfg,work)
                 count=len(calls)
                 self.assertEqual(sp.sample(source,cfg,work),final)

@@ -1,0 +1,10 @@
+%mem=60GB
+%nprocshared=16
+#p B3LYP/Gen 6D NMR=(FCOnly) Int=NoBasisTransform G09Defaults
+
+ConfoNMR geminal CH2 branch: DU4 basis (C 4-31G, O 6-31G, H 8s1p), FC-only, gas phase, custom DFT geometry
+
+0 1
+[GEOMETRY]
+
+[BASIS]

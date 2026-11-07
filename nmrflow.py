@@ -194,7 +194,7 @@ def gaussian_read(path, stage):
     require(math.isfinite(float(energies[-1].replace('D','E'))), 'Nonfinite SCF energy')
     result={'geometry': geom, 'energy': float(energies[-1].replace('D', 'E')),
             'frequencies': frequencies, 'shielding': shielding}
-    if stage=='coupling':
+    if stage in ('coupling','coupling_du4'):
         from coupling import parse_fc
         result['fc_hz']=parse_fc(text,len(geom))
     if stage=='ecd':
@@ -286,6 +286,15 @@ def quantum(template, geom, cfg, directory, stage):
     text = re.sub(r'%nprocshared=.*', '%nprocshared={}'.format(cfg['cores']), text, flags=re.I)
     text = re.sub(r'^[ \t]*0[ \t]+1[ \t]*$', '{} {}'.format(cfg['charge'], cfg['multiplicity']), text, flags=re.M)
     text = text.replace('[GEOMETRY]', geometry_text(geom))
+    if '[BASIS]' in text:
+        from coupling_methods import basis_block
+        kind = 'du4' if stage == 'coupling_du4' else 'bally'
+        block, borrowed = basis_block(kind, [atom[0] for atom in geom])
+        text = text.replace('[BASIS]', block)
+        if borrowed:
+            print('coupling basis: fallback basis borrowed for ' + ','.join(borrowed), flush=True)
+    from iodine_compat import render as iodine_input
+    text = iodine_input(text,[atom[0] for atom in geom],cfg,stage)
     stem = artifact_stem(directory, cfg, 'Gau', stage)
     text = '%chk='+stem+'.chk\n' + re.sub(r'^%chk=.*\n', '', text, flags=re.M | re.I)
     inp, log, receipt = directory/(stem+'.gjf'), directory/(stem+'.log'), directory/'receipt.json'
@@ -300,7 +309,8 @@ def quantum(template, geom, cfg, directory, stage):
             require(len(result['transitions'])==options(cfg)['ecd_states'],'Incomplete/unexpected ECD state count')
         return result
     require(not log.exists(), 'Unfinished stage {}; archive it before retrying'.format(directory))
-    inp.write_text(text,encoding='utf-8')
+    # Receipts hash these exact UTF-8/LF bytes on Windows and Linux alike.
+    with inp.open('w',encoding='utf-8',newline='\n') as handle:handle.write(text)
     env = os.environ.copy()
     env['NMR_DETAIL_LOG'] = '0'
     scratch = directory/'scratch'
@@ -495,7 +505,7 @@ def run_candidate(candidate, cfg, run):
             row['nmr'][method] = str(directory/(artifact_stem(directory,cfg,'Gau',directory.name)+'.log'))
         if modules['coupling']:
             row['coupling']={}
-            for stage,template in [('coupling','08_coupling_fc.gjf'),('coupling_shielding','08_coupling_shielding.gjf')]:
+            for stage,template in [('coupling','08_coupling_fc.gjf'),('coupling_du4','08_coupling_du4.gjf'),('coupling_shielding','08_coupling_shielding.gjf')]:
                 directory=run/'conformers'/row['id']/stage
                 quantum(ROOT/'resources'/template,row['geometry'],cfg,directory,stage)
                 row['coupling'][stage]=str(directory/(artifact_stem(directory,cfg,'Gau',directory.name)+'.log'))
@@ -590,10 +600,12 @@ def main():
         for filename in ['03_tem1.gjf','03_tem2.gjf','03_tem3.gjf','04_tem.gjf','05_tem.inp',
                          '06_tem01_nmr.gjf','06_tem02_nmr.gjf','06_tem03_nmr.gjf','isostat','sobtop','atomtype','shermo_settings.ini']:
             require((ROOT/'resources'/filename).exists(), 'Missing workflow resource '+filename)
-        for filename in (['08_coupling_fc.gjf','08_coupling_shielding.gjf'] if modules['coupling'] else []) + (['07_tem'+m+'_ecd.gjf' for m in modules['ecd_methods']] if modules['ecd'] else []):
+        for filename in (['08_coupling_fc.gjf','08_coupling_du4.gjf','08_coupling_shielding.gjf'] if modules['coupling'] else []) + (['07_tem'+m+'_ecd.gjf' for m in modules['ecd_methods']] if modules['ecd'] else []):
             require((ROOT/'resources'/filename).exists(),'Missing module template '+filename)
         for c in cfg['candidates']:
             require(Path(c['input']).exists(), 'Missing input '+c['input'])
+            from iodine_compat import input_elements, require_policy
+            require_policy(cfg,input_elements(c['input']))
             if c['input'].lower().endswith('.xyz'):
                 blocks=xyz_read(c['input'])
                 if quick:
