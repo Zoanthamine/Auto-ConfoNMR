@@ -4,12 +4,11 @@
 - 新增 `08_coupling_du4.gjf`：B3LYP/Gen，C 4-31G、O 6-31G、H 8s1p，只用于 CH2 同碳 ²JHH；四类环境式在后处理选类并记录，不与 Bally 页平均。
 - 新增 `coupling_methods.py`，集中保存路线、两套基组、DU4 类别与 CH2 环境提示；元素超出 C/H/O 时给出记录在案的回退基组（Si 等），未知元素报错。
 - 导出新增 `CH2_geminal_DU4.csv` 与 `coupling_protocol.json`；原有一般 H–H 矩阵与工作簿结构不变。
-- 新增 `iodine_compat.py`：I 用 def2-SVP/ECP 参与几何与频率、全电子 DGDZVP 参与旧 NMR 分支；该方案只做基组兼容，不含自旋–轨道效应，且自动统计暂停。
+- 移除 V2.2 早期的含碘基组兼容分支：内置 6-31G/6-311G 模板不覆盖 I，且缺少自旋–轨道屏蔽修正，DP4+/STS 标度也未针对该类体系验证。现在输入含碘体系会在预检阶段直接报错并说明原因。
 - 轨迹阶段新增 VMD XYZ 元素名归一化：按 GRO 原子名与索引核对后重写元素列，坐标 token 不变，原始轨迹保留。
 - 新增 `workflow_log.py`，在项目里生成可读的“总流程日志”，`计算总览.html` 增加入口。
 - Gaussian 输入统一以 UTF-8/LF 写入，保证收据哈希在 Windows 与 Linux 上一致。
 - 构象聚类新增 `gfn_coarse` 混合档：只放松 GFN 去重，DFT 阈值、isostat 显示温度、能量窗口、导出数量和热化学保持不变。
-- 新增 `test_iodine_compat.py`、`test_vmd_atom_mapping.py`、`test_workflow_log.py`，并同步更新 nmrflow/protocol 相关回归测试。
 - 新增 `docs/COUPLING_SCALING_GUIDE.md`，其中第 6 节列出标度法使用需求：基组与系数成对、保留符号、同碳 CH₂ 逐个选类、两轨不平均、评估准确度需实验 J、dJ-DP4 需四件套表、跨溶剂/温度需重新标度。
 - 既有项目继续使用各自冻结的快照；只有 V2.2 新建项目走新耦合与兼容路径。
 

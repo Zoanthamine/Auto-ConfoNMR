@@ -293,8 +293,6 @@ def quantum(template, geom, cfg, directory, stage):
         text = text.replace('[BASIS]', block)
         if borrowed:
             print('coupling basis: fallback basis borrowed for ' + ','.join(borrowed), flush=True)
-    from iodine_compat import render as iodine_input
-    text = iodine_input(text,[atom[0] for atom in geom],cfg,stage)
     stem = artifact_stem(directory, cfg, 'Gau', stage)
     text = '%chk='+stem+'.chk\n' + re.sub(r'^%chk=.*\n', '', text, flags=re.M | re.I)
     inp, log, receipt = directory/(stem+'.gjf'), directory/(stem+'.log'), directory/'receipt.json'
@@ -522,6 +520,34 @@ def run_candidate(candidate, cfg, run):
     save(state, {'identity': identity, 'status': 'complete'})
 
 
+UNSUPPORTED_ELEMENTS = {
+    'I': '碘（I）不在支持范围：内置 6-31G/6-311G 模板不覆盖 I，缺少自旋–轨道屏蔽修正，'
+         'DP4+/STS 标度也未针对该类体系验证。请去掉碘，或改用专门的处理方案。',
+}
+
+
+def input_elements(path):
+    """Explicit element symbols from a geometry file (PDB or XYZ/MOL-like)."""
+    path = Path(path); text = path.read_text(encoding='utf-8-sig')
+    if path.suffix.lower() == '.pdb':
+        result = [line[76:78].strip().title() for line in text.splitlines()
+                  if line.startswith(('ATOM  ', 'HETATM'))]
+    else:
+        result = []
+        for line in text.splitlines():
+            fields = line.split()
+            if len(fields) != 4 or not re.fullmatch(r'[A-Z][a-z]?', fields[0]):
+                continue
+            try:
+                [float(v) for v in fields[1:]]
+            except ValueError:
+                continue
+            result.append(fields[0])
+    if not result or any(not x for x in result):
+        raise ValueError('Cannot determine explicit input elements: '+str(path))
+    return result
+
+
 def validate_config(cfg):
     from module_options import validate
     validate(cfg)
@@ -604,8 +630,9 @@ def main():
             require((ROOT/'resources'/filename).exists(),'Missing module template '+filename)
         for c in cfg['candidates']:
             require(Path(c['input']).exists(), 'Missing input '+c['input'])
-            from iodine_compat import input_elements, require_policy
-            require_policy(cfg,input_elements(c['input']))
+            for element in input_elements(c['input']):
+                require(element not in UNSUPPORTED_ELEMENTS,
+                        UNSUPPORTED_ELEMENTS.get(element, 'Unsupported element '+element))
             if c['input'].lower().endswith('.xyz'):
                 blocks=xyz_read(c['input'])
                 if quick:

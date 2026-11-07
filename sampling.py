@@ -93,8 +93,6 @@ def resp2(mol2, cfg, work):
         stem = 'Gau_RESP_{}_{}'.format(phase,work.parent.name) if cfg.get('output_layout')=='direct_v1' else 'gau'
         inp = ('%mem={}GB\n%nprocshared={}\n%chk='+stem+'.chk\n{}\n\nRESP2 {}\n\n{} {}\n{}\n\n').format(
             cfg['memory_gb'], cfg['cores'], route, phase, cfg['charge'], cfg['multiplicity'], geometry_text(geom))
-        from iodine_compat import render as iodine_input
-        inp = iodine_input(inp,[atom[0] for atom in geom],cfg,'resp')
         (directory/(stem+'.gjf')).write_text(inp)
         env = os.environ.copy()
         env['NMR_DETAIL_LOG'] = '0'

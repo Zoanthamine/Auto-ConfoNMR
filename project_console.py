@@ -73,7 +73,7 @@ experiment_pattern = experiment_*.csv
 # 兼容单表experiment.csv；不存在时不读取。一般多样品使用上面的命名即可。
 experiment = experiment.csv
 '''.format(**cfg,T=cfg['shermo']['T'],P=cfg['shermo']['P'],
-           exploratory='false' if cfg.get('element_policy')=='iodine_mixed_v1' else 'true')+mo.settings_text(cfg)
+            exploratory='true')+mo.settings_text(cfg)
 
 def install_entries(project,workflow,python=None):
     for name,action in ENTRIES.items():
@@ -125,8 +125,6 @@ def prepare(project,structures,charge=0,multiplicity=1,cap=6,nmr_profile='legacy
     mo.validate(cfg)
     apply_choices(cfg,nmr_profile,clustering_profile)
     for b in cfg['postprocessing']:b['allow_exploratory']=True
-    from iodine_compat import configure_inputs
-    configure_inputs(cfg,structures)
     atomic_text(project/'job.json',json.dumps(cfg,ensure_ascii=False,indent=2)+'\n')
     atomic_text(project/'project.ini',settings_text(cfg))
     atomic_text(project/'计算方案.md',overview(cfg))
@@ -166,12 +164,6 @@ def sync(project,write=True):
     cfg['experiment']=p.get('对比','experiment').strip();cfg['assignments']=p.get('对比','assignments').strip()
     for b in cfg['postprocessing']:b['allow_exploratory']=p.getboolean('对比','allow_exploratory')
     mo.read_settings(p,cfg)
-    # New projects record elements during prepare; completed projects may be
-    # reviewed without the original input paths mounted. Actual run checks
-    # still inspect the source before submission and every generated stage.
-    if cfg.get('element_policy'):
-        from iodine_compat import configure
-        configure(cfg,cfg['element_policy_elements'])
     from nmrflow import validate_config,calculation_config
     validate_config(cfg)
     resolved=json.loads(json.dumps(cfg));resolved['output']=str((Path(project)/cfg['output']).resolve())
@@ -201,9 +193,6 @@ def preview_inputs(project,cfg,workflow):
     for mid in (cfg['methods'] if mo.options(cfg)['base']=='nmr' else []):
         source=Path(workflow)/'resources'/('06_tem'+mid+'_nmr.gjf')
         text=nmr_text(source.read_text(),cfg)
-        if cfg.get('element_policy'):
-            from iodine_compat import render as iodine_input
-            text=iodine_input(text,cfg['element_policy_elements'],cfg,'nmr')
         text=re.sub(r'%mem=.*','%mem={}GB'.format(cfg['memory_gb']),text,flags=re.I)
         text=re.sub(r'%nprocshared=.*','%nprocshared={}'.format(cfg['cores']),text,flags=re.I)
         text=re.sub(r'(?m)^0 1$','{} {}'.format(cfg['charge'],cfg['multiplicity']),text)

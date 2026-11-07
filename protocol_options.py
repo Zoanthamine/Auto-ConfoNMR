@@ -146,9 +146,4 @@ def overview(cfg):
             'ECD：SMD '+m['ecd_solvent']+'，'+str(m['ecd_states'])+'态；方法 '+','.join(m['ecd_methods'])+'。',
             'ECD方法编号与NMR编号属于不同表：01 PBE0/TZVP；02 CAM-B3LYP/6-311G*；03 B3LYP/6-311G*。',
             'ECD不注入NMR溶剂或G09Defaults；仍使用共用气相几何和Shermo布居。']
-    if cfg.get('element_policy')=='iodine_mixed_v1':
-        lines+=['','## 含碘兼容覆盖','',
-                '上表基组为轻元素基组；I在RESP及优化/频率步骤改用def2-SVP及配套ECP，在旧Gaussian核磁分支使用全电子DGDZVP。',
-                '这是缺基组的兼容修复，未包含完整自旋–轨道核磁效应；直接连I的碳及附近氢需另行验证。',
-                '原DP4+/STS校准未覆盖本混合基组方案，自动统计暂停；保留原始屏蔽供审查。']
     return '\n'.join(lines)+'\n'

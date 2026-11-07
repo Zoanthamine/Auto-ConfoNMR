@@ -4,7 +4,7 @@
 
 自动化构象加权核磁计算与候选结构评估 · **V2.2**
 
-Auto ConfoNMR 从三维候选结构出发，完成构象搜索、几何优化、频率分析、单点能和构象加权 NMR 计算，并根据实验归属进行 DP4+/STS 比较。V2.2 保留 V2.1 的多样品比较、单独构象搜索、耦合与 ECD 模块，把 H–H 耦合改为双轨（Bally 一般项 + DU4 同碳项），并新增含碘基组兼容、VMD 轨迹元素归一化和总流程日志。适用于 Linux 集群，目前提供 PBS 单节点提交方式。
+Auto ConfoNMR 从三维候选结构出发，完成构象搜索、几何优化、频率分析、单点能和构象加权 NMR 计算，并根据实验归属进行 DP4+/STS 比较。V2.2 保留 V2.1 的多样品比较、单独构象搜索、耦合与 ECD 模块，把 H–H 耦合改为双轨（Bally 一般项 + DU4 同碳项），并明确含碘体系不在支持范围、VMD 轨迹元素归一化和总流程日志。适用于 Linux 集群，目前提供 PBS 单节点提交方式。
 
 日常使用下载 [V2.2 运行包](https://github.com/Zoanthamine/Auto-ConfoNMR/releases/download/V2.2/Auto_ConfoNMR_V2.2_runtime.zip)，解压后按后文配置。也可以克隆本仓库。也可以克隆本仓库。两种方式都包含辅助程序、配套参数和 DP4+/STS 工作簿；Gaussian、ORCA 等完整软件环境需另行准备。
 
