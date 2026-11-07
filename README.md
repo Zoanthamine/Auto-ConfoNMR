@@ -6,13 +6,13 @@
 
 Auto ConfoNMR 从三维候选结构出发，完成构象搜索、几何优化、频率分析、单点能和构象加权 NMR 计算，并根据实验归属进行 DP4+/STS 比较。V2.2 保留 V2.1 的多样品比较、单独构象搜索、耦合与 ECD 模块，把 H–H 耦合改为双轨（Bally 一般项 + DU4 同碳项），并新增含碘基组兼容、VMD 轨迹元素归一化和总流程日志。适用于 Linux 集群，目前提供 PBS 单节点提交方式。
 
-日常使用下载 [V2.1 运行包](https://github.com/Zoanthamine/Auto-ConfoNMR/releases/download/V2.1/Auto_ConfoNMR_V2.1_runtime.zip)，解压后按后文配置；main 分支已到 V2.2，V2.2 运行包发布前请直接用 `git clone` 获取当前代码。也可以克隆本仓库。两种方式都包含辅助程序、配套参数和 DP4+/STS 工作簿；Gaussian、ORCA 等完整软件环境需另行准备。
+日常使用下载 [V2.2 运行包](https://github.com/Zoanthamine/Auto-ConfoNMR/releases/download/V2.2/Auto_ConfoNMR_V2.2_runtime.zip)，解压后按后文配置。也可以克隆本仓库。也可以克隆本仓库。两种方式都包含辅助程序、配套参数和 DP4+/STS 工作簿；Gaussian、ORCA 等完整软件环境需另行准备。
 
 |下载文件|用途|内容|
 |---|---|---|
-|`Auto_ConfoNMR_V2.1_runtime.zip`|日常计算|运行脚本、计算模板、说明、辅助程序和工作簿|
-|`Auto_ConfoNMR_V2.1_source.zip`|查看或维护源码|运行包内容，以及 `tests/` 和参数提取工具|
-|`Auto_ConfoNMR_V2.1_linux_resources.tar.gz`|单独配置辅助资源|辅助程序、参数、工作簿、许可及对应源码；前两个包已包含，无需重复下载|
+|`Auto_ConfoNMR_V2.2_runtime.zip`|日常计算|运行脚本、计算模板、说明、辅助程序和工作簿|
+|`Auto_ConfoNMR_V2.2_source.zip`|查看或维护源码|运行包内容，以及 `tests/` 和参数提取工具|
+|`Auto_ConfoNMR_V2.2_linux_resources.tar.gz`|单独配置辅助资源|辅助程序、参数、工作簿、许可及对应源码；前两个包已包含，无需重复下载|
 |`SHA256SUMS.txt`|检查下载文件|三个压缩包的 SHA256|
 
 软件路径、module 和队列写在 `config/cluster.json`，每次计算的条件写在带中文注释的 `project.ini`。辅助资源沿用 V1.2 的版本，目录与来源见 [confonmr-resources/](confonmr-resources/)。
@@ -206,7 +206,9 @@ A("加权屏蔽与原子编号对照") --> D("核对信号、原子号与分类"
 |`经验标度_<候选>`|整页非对角元 `(J_raw+0.1405)/0.9509`；该校准用于 ³JHH，²J和长程项需自行区分|
 |`Bally参考_<候选>`|原始值独立乘 `0.9155`；V2.2 起该页对应真实计算的 Bally 基组，不再是普通 6-31G(d,p) 的近似|
 
-CH2 同碳项请取 `CH2_geminal_DU4.csv` 或工作表中的四类候选值，选类理由写在同一工作表；不要与 Bally 参考页取平均。细节见 [COUPLING_SCALING_GUIDE.md](docs/COUPLING_SCALING_GUIDE.md)。
+CH2 同碳项请取 `CH2_geminal_DU4.csv` 或工作表中的四类候选值，选类理由写在同一工作表；不要与 Bally 参考页取平均。
+
+**标度法的使用需求**（基组与系数必须成对、保留符号、逐一手动选类、两轨不平均、评估准确度需实验 J、dJ-DP4 需四件套表、跨溶剂/温度要重新标度）见 [COUPLING_SCALING_GUIDE.md 第 6 节](docs/COUPLING_SCALING_GUIDE.md)。
 
 需要 dJ-DP4 探索比较时，准备一组 C/H 位移表和两张 J 表：
 
@@ -326,7 +328,7 @@ cd Auto_ConfoNMR
 cp config/cluster.example.json config/cluster.json
 ```
 
-V2.1 标签保留首次发布快照；V2.2 标签对应双轨耦合版本，后续文档更新见 main 分支与当前下载包。
+V2.1 标签保留首次发布快照；V2.2 标签对应双轨耦合与兼容性更新版本，下载包见 releases 页面。
 
 随附辅助程序适用于 Linux x86-64。Gaussian/formchk、ORCA/匹配 OpenMPI、GROMACS、VMD、Open Babel、Python 和 PBS 仍需自行配置。Python 安装 `requirements.txt`，启用 ECD 再安装 `requirements-ecd.txt`。计算节点需能访问程序和项目目录。
 

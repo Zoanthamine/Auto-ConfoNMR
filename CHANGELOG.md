@@ -10,6 +10,7 @@
 - Gaussian 输入统一以 UTF-8/LF 写入，保证收据哈希在 Windows 与 Linux 上一致。
 - 构象聚类新增 `gfn_coarse` 混合档：只放松 GFN 去重，DFT 阈值、isostat 显示温度、能量窗口、导出数量和热化学保持不变。
 - 新增 `test_iodine_compat.py`、`test_vmd_atom_mapping.py`、`test_workflow_log.py`，并同步更新 nmrflow/protocol 相关回归测试。
+- 新增 `docs/COUPLING_SCALING_GUIDE.md`，其中第 6 节列出标度法使用需求：基组与系数成对、保留符号、同碳 CH₂ 逐个选类、两轨不平均、评估准确度需实验 J、dJ-DP4 需四件套表、跨溶剂/温度需重新标度。
 - 既有项目继续使用各自冻结的快照；只有 V2.2 新建项目走新耦合与兼容路径。
 
 ## V2.1 文档与许可更新 · 2026-10-14
